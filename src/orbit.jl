@@ -52,7 +52,6 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=2.01
         (M.r_domain[1] < x[1] < M.r_domain[2]) &&
         (M.z_domain[1] < x[2] < M.z_domain[2])
     end
-
     if !bdry([c.r,c.z])
         error("Starting point outside wall")
     end
@@ -88,25 +87,26 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=2.01
 
         if sign(dr10[2]*dr20[2]) < 0
             ncross = ncross + 1
-            if abs(dr10[1]) < 0.01 && sign(dr20[2]) == sign((z[2]-z[1]))
+            if abs(dr10[1]) < 0.02 && sign(dr20[2]) == sign((z[2]-z[1]))
                 complete = true
                 break
             end
         end
     end
-    if ncross > 2
+    if ncross != 2 && ncross != 4
         complete = false
     end
 
     if !complete && !hits_boundary
-        error("EPRZCoordinate cannot be expressed as a CQL3DCoordinate")
+        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",ncross," ",hits_boundary)
+        return Nullable{CQL3DCoordinate}()
     end
 
     rind = indmax(r)
     rr = r[rind]
     zz = z[rind]
     pitch = get_pitch(c, M, rr, zz, amu=amu, Z=Z)
-    return CQL3DCoordinate(c.energy, pitch, rr)
+    return Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch, rr))
 end
 
 type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Float64}}
