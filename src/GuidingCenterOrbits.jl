@@ -19,6 +19,6 @@ export Polygon, in_polygon, orientation, area
 export AxisymmetricEquilibrium
 export follow_contour
 export calc_orbit, plot_orbit, get_pitch, Orbit
-export CQL3DCoordinate, HamiltonianCoordinate, cql3d_to_hamiltonian
+export CQL3DCoordinate, HamiltonianCoordinate, EPRZCoordinate
 
 end
