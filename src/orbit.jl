@@ -125,7 +125,7 @@ function get_pitch(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium, r, z; a
     g = M.g([psi])
     babs = M.b([r,z])
 
-    pitch = -babs*(c.p_phi - Z*e0*psi)/(sqrt(2e3*e0*c.energy*mass_u*amu)*g*M.sigma)
+    pitch = clamp(-babs*(c.p_phi - Z*e0*psi)/(sqrt(2e3*e0*c.energy*mass_u*amu)*g*M.sigma),-1.0, 1.0)
     return pitch
 end
 
@@ -135,7 +135,7 @@ function get_pitch{T<:AbstractOrbitCoordinate}(c::T, M::AxisymmetricEquilibrium,
 end
 
 function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T; amu=2.0141, Z=1.0)
-    oc = HamiltonianCoordinate(c, M, amu = amu, Z=amu)
+    oc = HamiltonianCoordinate(c, M, amu = amu, Z=Z)
     res = ForwardDiff.GradientResult(rand(2))
     function vgc(t, y, ydot)
         ri = [y[1],y[3]]
@@ -174,7 +174,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
         error("Starting point outside wall")
     end
 
-    f = make_gc_ode(M, c, amu, Z)
+    f = make_gc_ode(M, c, amu=amu, Z=Z)
     y0 = [c.R, 0.0, M.axis[2]]
     t = 1e-6*collect(linspace(0.0,tmax,nstep))
 
