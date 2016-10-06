@@ -19,7 +19,7 @@ immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     p_phi::T
 end
 
-function HamiltonianCoordinate(c::CQL3DCoordinate, M::AxisymmetricEquilibrium; amu=2.0141, Z=1.0)
+function HamiltonianCoordinate(c::CQL3DCoordinate, M::AxisymmetricEquilibrium; amu=H2_amu, Z=1.0)
     psi = M.psi([c.R,M.axis[2]])
     babs = M.b([c.R,M.axis[2]])
     g = M.g([psi])
@@ -31,11 +31,11 @@ function HamiltonianCoordinate(c::CQL3DCoordinate, M::AxisymmetricEquilibrium; a
     return hc
 end
 
-function HamiltonianCoordinate(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium; amu=2.0141, Z=1.0)
+function HamiltonianCoordinate(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium; amu=H2_amu, Z=1.0)
     return c
 end
 
-function HamiltonianCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=2.0141, Z=1.0)
+function HamiltonianCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_amu, Z=1.0)
     psi = M.psi([c.r,c.z])
     babs = M.b([c.r,c.z])
     g = M.g([psi])
@@ -47,7 +47,7 @@ function HamiltonianCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; am
     return hc
 end
 
-function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=2.0141, Z=1.0)
+function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_amu, Z=1.0)
     bdry = function ib(x)
         (M.r_domain[1] < x[1] < M.r_domain[2]) &&
         (M.z_domain[1] < x[2] < M.z_domain[2])
@@ -60,7 +60,7 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=2.01
     y0 = [c.r, 0.0, c.z]
     t = 1e-6*collect(linspace(0.0,600.0,6000))
 
-    res = Sundials.cvode(f, y0, t)
+    res = Sundials.cvode(f, y0, t, reltol=1e-8, abstol=1e-10)
     r = res[:,1]
     z = res[:,3]
 
@@ -87,7 +87,7 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=2.01
 
         if sign(dr10[2]*dr20[2]) < 0
             ncross = ncross + 1
-            if abs(dr10[1]) < 0.02 && sign(dr20[2]) == sign((z[2]-z[1]))
+            if abs(dr10[1]) < 0.01 && sign(dr20[2]) == sign((z[2]-z[1]))
                 complete = true
                 break
             end
@@ -120,21 +120,26 @@ type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Floa
     complete::Bool
 end
 
-function get_pitch(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium, r, z; amu = 2.0141, Z=1.0)
+function get_pitch(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium, r, z; amu = H2_amu, Z=1.0)
     psi = M.psi([r,z])
     g = M.g([psi])
     babs = M.b([r,z])
 
-    pitch = clamp(-babs*(c.p_phi - Z*e0*psi)/(sqrt(2e3*e0*c.energy*mass_u*amu)*g*M.sigma),-1.0, 1.0)
-    return pitch
+    f = -babs/(sqrt(2e3*e0*c.energy*mass_u*amu)*g*M.sigma)
+    pitch = f*(c.p_phi - Z*e0*psi)
+    pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*c.energy)), 0.0))
+    if !isapprox(abs(pitch), pitchabs, atol=1e-3)
+        warn("abs(pitch) != abspitch: ",pitch," ",pitchabs)
+    end
+    return clamp(pitch,-1.0,1.0)
 end
 
-function get_pitch{T<:AbstractOrbitCoordinate}(c::T, M::AxisymmetricEquilibrium, r, z; amu=2.0141, Z=1.0)
+function get_pitch{T<:AbstractOrbitCoordinate}(c::T, M::AxisymmetricEquilibrium, r, z; amu=H2_amu, Z=1.0)
     hcoord = HamiltonianCoordinate(c, M, amu=amu, Z=Z)
     return get_pitch(hcoord, M, r, z, amu=amu, Z=Z)
 end
 
-function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T; amu=2.0141, Z=1.0)
+function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T; amu=H2_amu, Z=1.0)
     oc = HamiltonianCoordinate(c, M, amu = amu, Z=Z)
     res = ForwardDiff.GradientResult(rand(2))
     function vgc(t, y, ydot)
@@ -159,7 +164,7 @@ function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
     end
 end
 
-function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinate; amu=2.0141, Z=1.0, nstep=3000, tmax=500.0)
+function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinate; amu=H2_amu, Z=1.0, nstep=3000, tmax=500.0)
 
     hamilc = HamiltonianCoordinate(c, M, amu=amu, Z=Z)
 
@@ -178,7 +183,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     y0 = [c.R, 0.0, M.axis[2]]
     t = 1e-6*collect(linspace(0.0,tmax,nstep))
 
-    res = Sundials.cvode(f, y0, t)
+    res = Sundials.cvode(f, y0, t, reltol=1e-8,abstol=1e-10)
 
     r = res[:,1]
     phi = res[:,2]
@@ -230,7 +235,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     return Orbit(hamilc, c, rp, zp, phip, tp, hits_boundary, complete)
 end
 
-function create_energy(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=2.0141, Z=1.0)
+function create_energy(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=H2_amu, Z=1.0)
     oc = HamiltonianCoordinate(c,M,amu,Z)
     function energy_function(x)
         psi = M.psi(x)
@@ -241,7 +246,7 @@ function create_energy(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=2.014
     end
 end
 
-function create_mu(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=2.0141, Z=1.0)
+function create_mu(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=H2_amu, Z=1.0)
     oc = HamiltonianCoordinate(c,M,amu,Z)
     function mu_function(x)
         psi = M.psi(x)
@@ -252,7 +257,7 @@ function create_mu(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=2.0141, Z
     end
 end
 
-function gc_velocity(M::AxisymmetricEquilibrium,c::HamiltonianCoordinate,ri; amu=2.0141, Z=1.0)
+function gc_velocity(M::AxisymmetricEquilibrium,c::HamiltonianCoordinate,ri; amu=H2_amu, Z=1.0)
     E = c.energy
     pphi = c.p_phi
     mu = c.mu
@@ -274,7 +279,7 @@ end
 
 
 function calc_orbit_contour(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinate;
-                    amu=2.0141, Z=1.0, s_range=(0.01,0.01), tol=1e-8,
+                    amu=H2_amu, Z=1.0, s_range=(0.01,0.01), tol=1e-8,
                     step_range = (1e-6,0.01), max_step=3000,verbose=true)
 
     raxis, zaxis = M.axis
