@@ -115,7 +115,7 @@ type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Floa
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
-    t::Vector{T}
+    dt::Vector{T}
     hits_boundary::Bool
     complete::Bool
 end
@@ -168,71 +168,70 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
 
     hamilc = HamiltonianCoordinate(c, M, amu=amu, Z=Z)
 
-    bdry = function ib(x)
-        x[1] - c.R <= 1e-3 &&
-        in_polygon(x,wall) #&&
-        #(M.r_domain[1] < x[1] < M.r_domain[2]) &&
-        #(M.z_domain[1] < x[2] < M.z_domain[2])
+    #Function to check if in function
+    hits_boundary = [false]
+    in_boundary = function ib(x)
+        if x[1] - c.R <= 1e-3 && in_polygon(x[1:2:3],wall)
+            return true
+        else
+            hits_boundary[1] = true
+            return false
+        end
     end
 
-    if !bdry([c.R,M.axis[2]])
-        error("Starting point outside wall")
-    end
-
-    f = make_gc_ode(M, c, amu=amu, Z=Z)
-    y0 = [c.R, 0.0, M.axis[2]]
-    t = 1e-6*collect(linspace(0.0,tmax,nstep))
-
-    res = Sundials.cvode(f, y0, t, reltol=1e-8,abstol=1e-10)
-
-    r = res[:,1]
-    phi = res[:,2]
-    z = res[:,3]
-
-    n = length(r)
-
-    r0 = [c.R,M.axis[2]]
-    cnt = 1
-    ncross = 0
-    hits_boundary = false
-    complete = false
-    @inbounds for i=2:n-1
-        cnt = cnt+1
-        r1 = [r[i],z[i]]
-        r2 = [r[i+1],z[i+1]]
-
-        if !bdry(r2)
-            hits_boundary = true
-            break
+    #Function to check if orbit is complete
+    r0 = [c.R, 0.0, M.axis[2]]
+    r1 = copy(r0)
+    initial_dir = [0]
+    orbit_complete = [false]
+    is_complete = function ic(r2)
+        if initial_dir[1] == 0
+            initial_dir[1] = sign(r2[3]-r0[3])
+            r1[:] = convert(Vector, r2)
+            return false
         end
 
         dr10 = r1 - r0
         dr20 = r2 - r0
         dr21 = r2 - r1
 
-        if sign(dr10[2]*dr20[2]) < 0
-            ncross = ncross + 1
-            if abs(dr10[1]) < 0.01 && sign(dr20[2]) == sign((z[2]-z[1]))
-                complete = true
-                break
+        if sign(dr10[3]*dr20[3]) < 0
+            if abs(dr10[1]) < 0.01 && sign(dr20[3]) == initial_dir[1]
+                orbit_complete[1] = true
+                return true
             end
         end
-    end
-    if ncross > 2
-        complete = false
-    end
-
-    if !complete && !hits_boundary
-        warn("Orbit does not make one polodial transit: ",c)
-        cnt = cnt + 1
+        r1[:] = convert(Vector, r2)
+        return false
     end
 
-    rp = r[1:cnt]
-    zp = z[1:cnt]
-    phip = phi[1:cnt]
-    tp = t[1:cnt]
+    #Function to call between timesteps
+    cb = function callback(x)
+        !is_complete(x) && in_boundary(x)
+    end
 
-    return Orbit(hamilc, c, rp, zp, phip, tp, hits_boundary, complete)
+    if !in_boundary(r0)
+        error("Starting point outside wall")
+    end
+
+    f = make_gc_ode(M, c, amu=amu, Z=Z)
+    t = 1e-6*collect(linspace(0.0,tmax,nstep))
+
+    res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-10, callback = cb)
+
+    r = res[:,1]
+    phi = res[:,2]
+    z = res[:,3]
+
+    n = length(r)
+    dt = fill(t[2]-t[1],n)
+
+    #correct for last timestep
+    ydot = zeros(3)
+    flag = f(0.0, r0, ydot)
+    dt[end] = sqrt((r[end] - r[1])^2 + (z[end] - z[1])^2)/norm(ydot[1:2:3])
+
+    return Orbit(hamilc, c, r, z, phi, dt, hits_boundary[1], orbit_complete[1])
 end
 
 function create_energy(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=H2_amu, Z=1.0)
@@ -362,7 +361,7 @@ end
 
 function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
 #    pyplot()
-    t = o.t*1e6
+    t = cumsum(o.dt)*1e6
     n = length(t)
     r = o.r
     z = o.z
