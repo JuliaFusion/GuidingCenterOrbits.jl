@@ -2,6 +2,7 @@ module GuidingCenterOrbits
 
 using ForwardDiff
 using InterpolatingFunctions
+using Contour
 using Sundials
 using Plots
 

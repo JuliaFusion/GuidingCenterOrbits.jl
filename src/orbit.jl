@@ -9,8 +9,27 @@ end
 
 immutable CQL3DCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T
-    pitch::T
-    R::T
+    pitch_w::T
+    psi_w::T
+    r_w::T
+    z_w::T
+end
+
+function CQL3DCoordinate(energy, pitch, R, M::AxisymmetricEquilibrium)
+    psi = M.psi([R,M.axis[2]])
+    rmin = R-0.01
+    rmax = R+0.01
+    r = linspace(rmin,rmax,1000)
+    zmin = M.axis[2]-0.01
+    zmax = M.axis[2]+0.01
+    z = linspace(zmin,zmax,1000)
+    psirz = [M.psi([rr,zz]) for rr in r, zz in z]
+    l = Contour.contour(r,z,psirz,psi)
+    rc, zc = coordinates(lines(l)[1])
+    i = indmax(rc)
+    r_w = rc[i]
+    z_w = zc[i]
+    return CQL3DCoordinate(energy, pitch, psi, r_w, z_w)
 end
 
 immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
@@ -20,13 +39,13 @@ immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
 end
 
 function HamiltonianCoordinate(c::CQL3DCoordinate, M::AxisymmetricEquilibrium; amu=H2_amu, Z=1.0)
-    psi = M.psi([c.R,M.axis[2]])
-    babs = M.b([c.R,M.axis[2]])
+    psi = c.psi_w
+    babs = M.b([c.r_w,c.z_w])
     g = M.g([psi])
 
     E = c.energy
-    mu = e0*1e3*E*(1-c.pitch^2)/babs
-    Pphi = -M.sigma*sqrt(2e3*e0*E*mass_u*amu)*g*c.pitch/babs + Z*e0*psi
+    mu = e0*1e3*E*(1-c.pitch_w^2)/babs
+    Pphi = -M.sigma*sqrt(2e3*e0*E*mass_u*amu)*g*c.pitch_w/babs + Z*e0*psi
     hc = HamiltonianCoordinate(E,mu,Pphi)
     return hc
 end
@@ -48,65 +67,77 @@ function HamiltonianCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; am
 end
 
 function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_amu, Z=1.0)
-    bdry = function ib(x)
-        (M.r_domain[1] < x[1] < M.r_domain[2]) &&
-        (M.z_domain[1] < x[2] < M.z_domain[2])
+
+    hamilc = HamiltonianCoordinate(c, M, amu=amu, Z=Z)
+
+    #Function to check if in function
+    hits_boundary = [false]
+    in_boundary = function ib(x)
+        if (M.r_domain[1] < x[1] < M.r_domain[2]) && (M.z_domain[1] < x[3] < M.z_domain[2])
+            return true
+        else
+            hits_boundary[1] = true
+            return false
+        end
     end
-    if !bdry([c.r,c.z])
-        error("Starting point outside wall")
-    end
 
-    f = make_gc_ode(M, c, amu=amu, Z=Z)
-    y0 = [c.r, 0.0, c.z]
-    t = 1e-6*collect(linspace(0.0,600.0,6000))
-
-    res = Sundials.cvode(f, y0, t, reltol=1e-8, abstol=1e-10)
-    r = res[:,1]
-    z = res[:,3]
-
-    n = length(r)
-
-    r0 = [c.r,c.z]
-    cnt = 1
-    ncross = 0
-    hits_boundary = false
-    complete = false
-    @inbounds for i=2:n-1
-        cnt = cnt+1
-        r1 = [r[i],z[i]]
-        r2 = [r[i+1],z[i+1]]
-
-        if !bdry(r2)
-            hits_boundary = true
-            break
+    #Function to check if orbit is complete
+    r0 = [c.r, 0.0, c.z]
+    r1 = copy(r0)
+    initial_dir = [0]
+    npol = [0]
+    orbit_complete = [false]
+    is_complete = function ic(r2)
+        if initial_dir[1] == 0
+            initial_dir[1] = sign(r2[3]-r0[3])
+            r1[:] = convert(Vector, r2)
+            return false
         end
 
         dr10 = r1 - r0
         dr20 = r2 - r0
         dr21 = r2 - r1
 
-        if sign(dr10[2]*dr20[2]) < 0
-            ncross = ncross + 1
-            if abs(dr10[1]) < 0.01 && sign(dr20[2]) == sign((z[2]-z[1]))
-                complete = true
-                break
+        if sign(dr10[3]*dr20[3]) < 0
+            npol[1] = npol[1] + 1
+            if abs(dr10[1]) < 1e-3 && sign(dr20[3]) == initial_dir[1]
+                orbit_complete[1] = npol[1] == 2 || npol[1] == 4
+                return true
             end
         end
-    end
-    if ncross != 2 && ncross != 4
-        complete = false
+        r1[:] = convert(Vector, r2)
+        return false
     end
 
-    if !complete && !hits_boundary
-        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",ncross," ",hits_boundary)
+    #Function to call between timesteps
+    cb = function callback(x)
+        !is_complete(x) && in_boundary(x)
+    end
+
+    if !in_boundary(r0)
+        error("Starting point outside boundary")
+    end
+
+    f = make_gc_ode(M, c, amu=amu, Z=Z)
+    t = 1e-6*collect(linspace(0.0,tmax,nstep))
+
+    res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-12, callback = cb)
+
+    r = res[:,1]
+    phi = res[:,2]
+    z = res[:,3]
+
+    if !orbit_complete[1] && !hits_boundary[1]
+        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",npol[1]," ",hits_boundary)
         return Nullable{CQL3DCoordinate}()
     end
 
     rind = indmax(r)
-    rr = r[rind]
-    zz = z[rind]
-    pitch = get_pitch(c, M, rr, zz, amu=amu, Z=Z)
-    return Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch, rr))
+    r_w = r[rind]
+    z_w = z[rind]
+    pitch_w = get_pitch(c, M, r_w, z_w, amu=amu, Z=Z)
+    psi_w = M.psi([r_w,z_w])
+    return Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch_w, psi_w, r_w, z_w))
 end
 
 type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Float64}}
@@ -128,8 +159,8 @@ function get_pitch(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium, r, z; a
     f = -babs/(sqrt(2e3*e0*c.energy*mass_u*amu)*g*M.sigma)
     pitch = f*(c.p_phi - Z*e0*psi)
     pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*c.energy)), 0.0))
-    if !isapprox(abs(pitch), pitchabs, atol=1e-3)
-        warn("abs(pitch) != abspitch: ",pitch," ",pitchabs)
+    if !isapprox(abs(pitch), pitchabs, atol=1.5e-2)
+        warn("abs(pitch) != abspitch: ",pitchabs," ",pitch)
     end
     return clamp(pitch,-1.0,1.0)
 end
@@ -171,7 +202,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     #Function to check if in function
     hits_boundary = [false]
     in_boundary = function ib(x)
-        if x[1] - c.R <= 1e-3 && in_polygon(x[1:2:3],wall)
+        if x[1] - c.r_w <= 0.0 && in_polygon(x[1:2:3],wall)
             return true
         else
             hits_boundary[1] = true
@@ -180,9 +211,10 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     end
 
     #Function to check if orbit is complete
-    r0 = [c.R, 0.0, M.axis[2]]
+    r0 = [c.r_w, 0.0, c.z_w]
     r1 = copy(r0)
     initial_dir = [0]
+    npol = [0]
     orbit_complete = [false]
     is_complete = function ic(r2)
         if initial_dir[1] == 0
@@ -196,8 +228,9 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
         dr21 = r2 - r1
 
         if sign(dr10[3]*dr20[3]) < 0
-            if abs(dr10[1]) < 0.01 && sign(dr20[3]) == initial_dir[1]
-                orbit_complete[1] = true
+            npol[1] = npol[1] + 1
+            if norm(dr10[1:2:3]) < norm(dr21[1:2:3]) && sign(dr20[3]) == initial_dir[1]
+                orbit_complete[1] = npol[1] == 2 || npol[1] == 4
                 return true
             end
         end
@@ -217,7 +250,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     f = make_gc_ode(M, c, amu=amu, Z=Z)
     t = 1e-6*collect(linspace(0.0,tmax,nstep))
 
-    res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-10, callback = cb)
+    res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-12, callback = cb)
 
     r = res[:,1]
     phi = res[:,2]
@@ -286,19 +319,19 @@ function calc_orbit_contour(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DC
 
     energy = create_energy(M, c, amu, Z)
 
-    if !isapprox(energy([c.R,zaxis]), energy.oc.energy,atol=1e-16)
-        warn(energy([c.R,zaxis]), " !≈ ",energy.oc.energy)
+    if !isapprox(energy([c.r_w,c.z_w]), energy.oc.energy,atol=1e-16)
+        warn(energy([c.r_w,c.z_w]), " !≈ ",energy.oc.energy)
         return Nullable{Orbit}()
     end
 
     bdry = function ib(x)
-        x[1] - c.R <= 1e-3 &&
+        x[1] - c.r_w <= 0.0 &&
         in_polygon(x,wall) #&&
         #(M.r_domain[1] < x[1] < M.r_domain[2]) &&
         #(M.z_domain[1] < x[2] < M.z_domain[2])
     end
 
-    p = follow_contour(energy, [c.R, zaxis], tol=tol,
+    p = follow_contour(energy, [c.r_w, c.z_w], tol=tol,
         step_range=step_range, boundary = bdry,
         maxiter=max_step,verbose=verbose)
 
@@ -355,7 +388,7 @@ function calc_orbit_contour(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DC
         phi[i] = phi[i-1] + atan2((dt[i-1])*(vt1 + vt2)/2, r[i-1])
     end
 
-    orb = Orbit(c, c, r, z, phi, cumsum(dt), false, true)
+    orb = Orbit(c, c, r, z, phi, dt, false, true)
     return orb
 end
 
