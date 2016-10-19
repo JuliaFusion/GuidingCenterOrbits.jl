@@ -100,7 +100,7 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_a
 
         if sign(dr10[3]*dr20[3]) < 0
             npol[1] = npol[1] + 1
-            if abs(dr10[1]) < 1e-3 && sign(dr20[3]) == initial_dir[1]
+            if norm(dr10[1:2:3]) < norm(dr21[1:2:3]) && sign(dr20[3]) == initial_dir[1]
                 orbit_complete[1] = npol[1] == 2 || npol[1] == 4
                 return true
             end
@@ -119,7 +119,7 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_a
     end
 
     f = make_gc_ode(M, c, amu=amu, Z=Z)
-    t = 1e-6*collect(linspace(0.0,tmax,nstep))
+    t = 1e-6*collect(linspace(0.0,600.0,24000))
 
     res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-12, callback = cb)
 
