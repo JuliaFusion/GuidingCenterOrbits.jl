@@ -122,22 +122,24 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_a
     t = 1e-6*collect(linspace(0.0,600.0,24000))
 
     res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-12, callback = cb)
+    if !orbit_complete[1] && !hits_boundary[1]
+        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",npol[1]," ",hits_boundary)
+        return (Nullable{CQL3DCoordinate}(),:loss)
+    end
 
     r = res[:,1]
     phi = res[:,2]
     z = res[:,3]
 
-    if !orbit_complete[1] && !hits_boundary[1]
-        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",npol[1]," ",hits_boundary)
-        return Nullable{CQL3DCoordinate}()
-    end
+    pitch = [get_pitch(c, M, rr, zz, amu=amu, Z=Z) for (rr,zz) in zip(r,z)]
+    class = classify_orbit(r,z,pitch,M.axis)
 
     rind = indmax(r)
     r_w = r[rind]
     z_w = z[rind]
-    pitch_w = get_pitch(c, M, r_w, z_w, amu=amu, Z=Z)
+    pitch_w = pitch[ind]
     psi_w = M.psi([r_w,z_w])
-    return Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch_w, psi_w, r_w, z_w))
+    return (Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch_w, psi_w, r_w, z_w)), class)
 end
 
 type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Float64}}
@@ -147,8 +149,8 @@ type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Floa
     z::Vector{T}
     phi::Vector{T}
     dt::Vector{T}
-    hits_boundary::Bool
-    complete::Bool
+    pitch::Vector{T}
+    class::Symbol
 end
 
 function get_pitch(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium, r, z; amu = H2_amu, Z=1.0)
@@ -159,7 +161,7 @@ function get_pitch(c::HamiltonianCoordinate, M::AxisymmetricEquilibrium, r, z; a
     f = -babs/(sqrt(2e3*e0*c.energy*mass_u*amu)*g*M.sigma)
     pitch = f*(c.p_phi - Z*e0*psi)
     pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*c.energy)), 0.0))
-    if !isapprox(abs(pitch), pitchabs, atol=1.5e-2)
+    if !isapprox(abs(pitch), pitchabs, atol=1.e-1)
         warn("abs(pitch) != abspitch: ",pitchabs," ",pitch)
     end
     return clamp(pitch,-1.0,1.0)
@@ -168,6 +170,34 @@ end
 function get_pitch{T<:AbstractOrbitCoordinate}(c::T, M::AxisymmetricEquilibrium, r, z; amu=H2_amu, Z=1.0)
     hcoord = HamiltonianCoordinate(c, M, amu=amu, Z=Z)
     return get_pitch(hcoord, M, r, z, amu=amu, Z=Z)
+end
+
+function classify_orbit{T}(r::Vector{T},z::Vector{T},pitch::Vector{T},axis)
+    op = Polygon()
+    for p in zip(r,z)
+        push!(op.vertices,p)
+    end
+    push!(op.vertices,(r[1],z[1]))
+
+    if in_polygon(axis, op)
+        if all(sign.(pitch) .== sign(pitch[1]))
+            if sign(pitch[1]) > 0.0
+                class = Symbol("co_passing")
+            else
+                class = Symbol("ctr_passing")
+            end
+        else
+            class = Symbol("potato")
+        end
+    else
+        if all(sign.(pitch) .== sign(pitch[1]))
+            class = Symbol("stagnation")
+        else
+            class = Symbol("trapped")
+        end
+    end
+
+    return class
 end
 
 function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T; amu=H2_amu, Z=1.0)
@@ -255,8 +285,19 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     r = res[:,1]
     phi = res[:,2]
     z = res[:,3]
-
     n = length(r)
+
+    pitch = zeros(length(r))
+    for i=1:n
+        pitch[i] = get_pitch(hamilc,M,r[i],z[i])
+    end
+
+    if hits_boundary[1] || !orbit_complete[1]
+        class = Symbol("loss")
+    else
+        class = classify_orbit(r,z,pitch,M.axis)
+    end
+
     dt = fill(t[2]-t[1],n)
 
     #correct for last timestep
@@ -264,7 +305,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     flag = f(0.0, r0, ydot)
     dt[end] = sqrt((r[end] - r[1])^2 + (z[end] - z[1])^2)/norm(ydot[1:2:3])
 
-    return Orbit(hamilc, c, r, z, phi, dt, hits_boundary[1], orbit_complete[1])
+    return Orbit(hamilc, c, r, z, phi, dt, pitch, class)
 end
 
 function create_energy(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=H2_amu, Z=1.0)
@@ -309,89 +350,6 @@ function gc_velocity(M::AxisymmetricEquilibrium,c::HamiltonianCoordinate,ri; amu
     return vg
 end
 
-
-function calc_orbit_contour(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinate;
-                    amu=H2_amu, Z=1.0, s_range=(0.01,0.01), tol=1e-8,
-                    step_range = (1e-6,0.01), max_step=3000,verbose=true)
-
-    raxis, zaxis = M.axis
-    c.R < raxis && error("r < raxis")
-
-    energy = create_energy(M, c, amu, Z)
-
-    if !isapprox(energy([c.r_w,c.z_w]), energy.oc.energy,atol=1e-16)
-        warn(energy([c.r_w,c.z_w]), " !≈ ",energy.oc.energy)
-        return Nullable{Orbit}()
-    end
-
-    bdry = function ib(x)
-        x[1] - c.r_w <= 0.0 &&
-        in_polygon(x,wall) #&&
-        #(M.r_domain[1] < x[1] < M.r_domain[2]) &&
-        #(M.z_domain[1] < x[2] < M.z_domain[2])
-    end
-
-    p = follow_contour(energy, [c.r_w, c.z_w], tol=tol,
-        step_range=step_range, boundary = bdry,
-        maxiter=max_step,verbose=verbose)
-
-    if isnull(p)
-        r = Float64[]
-        z = Float64[]
-        phi = Float64[]
-        t = Float64[]
-        orb = Orbit(c,c,r,z,phi,t,true,false)
-        return orb
-    end
-
-    path = getfield(get(p),:vertices)
-    if length(path) == 1
-        println(c)
-    end
-
-    dr = [path[2][1] - path[1][1],path[2][2] - path[1][2]]
-    vgc = gc_velocity(M, energy.oc, collect(path[1]))
-    if (dr[1]*vgc[1] + dr[2]*vgc[3]) < 0.0
-        reverse!(path)
-    end
-
-    np = length(path)
-    r = [path[i][1] for i=1:np]
-    z = [path[i][2] for i=1:np]
-
-    if (std(r) < s_range[1] && std(z) < s_range[2])
-        # Stagnation orbit
-        r = [path[1][1],path[1][1]]
-        z = [path[1][2],path[1][2]]
-        vt = gc_velocity(M, energy.oc, collect(path[1]))[2]
-        t = [2pi*r[1]/vt, 0.0]
-        phi = [0.0, 2pi]
-        orb = Orbit(c, c, r, z, phi, t, false,true)
-        return orb
-    end
-
-    phi = zeros(np)
-    dt = zeros(np)
-    vgc = zeros(3,np)
-    vgc[:,1] = gc_velocity(M, energy.oc, collect(path[1]))
-    @inbounds for i=2:np
-        ri = collect(path[i])
-        vgc[:,i] = gc_velocity(M, energy.oc, ri)
-        d = sqrt((r[i] - r[i-1])^2 + (z[i] - z[i-1])^2)
-
-        vp1 = sqrt(vgc[1,i-1]^2 + vgc[3,i-1]^2)
-        vp2 = sqrt(vgc[1,i]^2 + vgc[3,i]^2)
-        vt1 = vgc[2,i-1]
-        vt2 = vgc[2,i]
-        dt[i-1] = d/(0.5*(vp1+vp2))
-
-        phi[i] = phi[i-1] + atan2((dt[i-1])*(vt1 + vt2)/2, r[i-1])
-    end
-
-    orb = Orbit(c, c, r, z, phi, dt, false, true)
-    return orb
-end
-
 function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
 #    pyplot()
     t = cumsum(o.dt)*1e6
@@ -405,13 +363,13 @@ function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),
 
     rr = vec(hcat(r[1:end-1],r[2:end],fill(NaN,n-1))')
     zz = vec(hcat(z[1:end-1],z[2:end],fill(NaN,n-1))')
-    plot!(p1,rr,zz,line_z=t,c=:bluesreds,label="",
+    plot!(p1,rr,zz,line_z=t,c=:bluesreds,label=o.class,
           colorbar=false,subplot=1,xlim=rlim,
           ylim=zlim,xlabel="R [m]",ylabel="Z [m]",aspect_ratio=1.0)
 
     xx = vec(hcat(x[1:end-1],x[2:end],fill(NaN,n-1))')
     yy = vec(hcat(y[1:end-1],y[2:end],fill(NaN,n-1))')
-    plot!(p1,xx,yy,line_z=t,c=:bluesreds,label="",subplot=2,
+    plot!(p1,xx,yy,line_z=t,c=:bluesreds,label=o.class,subplot=2,
           xlim=xlim,ylim=ylim,xlabel="X [m]",
           ylabel="Y [m]",aspect_ratio=1.0)
 
