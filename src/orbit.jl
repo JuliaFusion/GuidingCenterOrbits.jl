@@ -122,22 +122,24 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_a
     t = 1e-6*collect(linspace(0.0,tmax,nstep))
 
     res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-12, callback = cb)
+    if !orbit_complete[1] && !hits_boundary[1]
+        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",npol[1]," ",hits_boundary)
+        return (Nullable{CQL3DCoordinate}(),:loss)
+    end
 
     r = res[:,1]
     phi = res[:,2]
     z = res[:,3]
 
-    if !orbit_complete[1] && !hits_boundary[1]
-        warn("EPRZCoordinate cannot be expressed as a CQL3DCoordinate: ",npol[1]," ",hits_boundary)
-        return Nullable{CQL3DCoordinate}()
-    end
+    pitch = [get_pitch(c, M, rr, zz, amu=amu, Z=Z) for (rr,zz) in zip(r,z)]
+    class = classify_orbit(r,z,pitch,M.axis)
 
     rind = indmax(r)
     r_w = r[rind]
     z_w = z[rind]
-    pitch_w = get_pitch(c, M, r_w, z_w, amu=amu, Z=Z)
+    pitch_w = pitch[ind]
     psi_w = M.psi([r_w,z_w])
-    return Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch_w, psi_w, r_w, z_w))
+    return (Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch_w, psi_w, r_w, z_w)), class)
 end
 
 type Orbit{T,S<:AbstractOrbitCoordinate{Float64},R<:AbstractOrbitCoordinate{Float64}}
