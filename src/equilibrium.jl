@@ -1,9 +1,9 @@
 function B_function(f_psi,f_g)
-    res = ForwardDiff.GradientResult(rand(2))
+    res = DiffBase.GradientResult(rand(2))
     function B(ri)
         ForwardDiff.gradient!(res,f_psi, ri)
-        psi = ForwardDiff.value(res)
-        grad_psi = -ForwardDiff.gradient(res) #negative because "ribbon" polodial flux definintion
+        psi = DiffBase.value(res)
+        grad_psi = -DiffBase.gradient(res) #negative because "ribbon" polodial flux definintion
 
         br = -grad_psi[2]/ri[1]
         bz = grad_psi[1]/ri[1]
@@ -14,18 +14,15 @@ function B_function(f_psi,f_g)
 end
 
 function J_function(f_psi,f_g, f_p)
-    res = ForwardDiff.GradientResult(rand(2))
-    resd = ForwardDiff.DerivativeResult(1.0)
+    res = DiffBase.GradientResult(rand(2))
     function J(ri)
         ForwardDiff.gradient!(res,f_psi, ri)
-        psi = ForwardDiff.value(res)
-        grad_psi = -ForwardDiff.gradient(res) #negative because "ribbon" polodial flux definintion
+        psi = DiffBase.value(res)
+        grad_psi = -DiffBase.gradient(res) #negative because "ribbon" polodial flux definintion
 
         g = f_g([psi])
-        resd = ForwardDiff.derivative!(resd, f_g, psi)
-        gp = -ForwardDiff.derivative(resd)
-        resd = ForwardDiff.derivative!(resd, f_p, psi)
-        pp = -ForwardDiff.derivative(resd)
+        gp= -ForwardDiff.derivative(f_g, psi)
+        pp = -ForwardDiff.derivative(f_p, psi)
 
         jr = -gp*grad_psi[2]/(ri[1]*mu0)
         jz = gp*grad_psi[1]/(ri[1]*mu0)

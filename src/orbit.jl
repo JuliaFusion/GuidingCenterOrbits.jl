@@ -137,7 +137,7 @@ function CQL3DCoordinate(c::EPRZCoordinate, M::AxisymmetricEquilibrium; amu=H2_a
     rind = indmax(r)
     r_w = r[rind]
     z_w = z[rind]
-    pitch_w = pitch[ind]
+    pitch_w = pitch[rind]
     psi_w = M.psi([r_w,z_w])
     return (Nullable{CQL3DCoordinate}(CQL3DCoordinate(c.energy, pitch_w, psi_w, r_w, z_w)), class)
 end
@@ -202,15 +202,15 @@ end
 
 function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T; amu=H2_amu, Z=1.0)
     oc = HamiltonianCoordinate(c, M, amu = amu, Z=Z)
-    res = ForwardDiff.GradientResult(rand(2))
+    res = DiffBase.GradientResult(rand(2))
     function vgc(t, y, ydot)
         ri = [y[1],y[3]]
         psi = M.psi(ri)
         g = M.g(psi)
         B = M.B(ri)
         ForwardDiff.gradient!(res, M.b, ri)
-        gradB = ForwardDiff.gradient(res)
-        babs = ForwardDiff.value(res)
+        gradB = DiffBase.gradient(res)
+        babs = DiffBase.value(res)
 
         Wperp = oc.mu*babs
         Wpara = 1e3*e0*oc.energy - Wperp
@@ -269,7 +269,7 @@ function calc_orbit(M::AxisymmetricEquilibrium, wall::Polygon, c::CQL3DCoordinat
     end
 
     #Function to call between timesteps
-    cb = function callback(x)
+    cb = function callback(mem, t, x)
         !is_complete(x) && in_boundary(x)
     end
 
@@ -320,7 +320,7 @@ function create_energy(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=H2_am
 end
 
 function create_mu(M::AxisymmetricEquilibrium, c::CQL3DCoordinate, amu=H2_amu, Z=1.0)
-    oc = HamiltonianCoordinate(c,M,amu,Z)
+    oc = HamiltonianCoordinate(c,M,amu=amu,Z=Z)
     function mu_function(x)
         psi = M.psi(x)
         g = M.g(psi)

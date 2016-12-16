@@ -1,5 +1,6 @@
 module GuidingCenterOrbits
 
+using DiffBase
 using ForwardDiff
 using InterpolatingFunctions
 using Contour
