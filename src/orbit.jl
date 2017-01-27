@@ -142,14 +142,21 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     return Orbit(c, class, omega_p, omega_t, path)
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0)
-    return get_orbit(M, E, p, r, z, amu, q, nstep, tmax)
+function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0, store_path=true)
+    o = get_orbit(M, E, p, r, z, amu, q, nstep, tmax)
+    if !store_path
+        o = Orbit(o.coordinate, o.class, o.omega_p, o.omega_t, OrbitPath(typeof(o.omega_p)))
+    end
+    return o
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0)
+function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, store_path=true)
     o = get_orbit(M, c.energy, c.pitch, c.r, c.z, c.amu, c.q, nstep, tmax)
     if o.class != :incomplete
         maximum(o.path.r) > c.r && return Orbit(c)
+    end
+    if !store_path
+        o = Orbit(o.coordinate, o.class, o.omega_p, o.omega_t, OrbitPath(typeof(o.omega_p)))
     end
     return o
 end
