@@ -13,14 +13,15 @@ const mu0 = 4*pi*1e-7
 const H2_amu = 2.0141017778
 
 include("polygons.jl")
-include("contour.jl")
 include("equilibrium.jl")
+include("coordinates.jl")
 include("orbit.jl")
+include("utils.jl")
 
-export Polygon, in_polygon, orientation, area
+export Polygon, in_polygon
 export AxisymmetricEquilibrium
-export follow_contour
-export calc_orbit, plot_orbit, get_pitch, Orbit
-export CQL3DCoordinate, HamiltonianCoordinate, EPRZCoordinate
+export EPRCoordinate, HamiltonianCoordinate
+export get_pitch, hits_wall
+export Orbit, OrbitPath, get_orbit, plot_orbit
 
 end
