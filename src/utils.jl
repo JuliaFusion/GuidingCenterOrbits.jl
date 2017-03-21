@@ -1,7 +1,8 @@
 function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
-    psi = M.psi([r,z])
+    rz = [r,z]
+    psi = M.psi(rz)
     g = M.g([psi])
-    babs = M.b([r,z])
+    babs = M.b(rz)
 
     f = -babs/(sqrt(2e3*e0*c.energy*mass_u*c.amu)*g*M.sigma)
     pitch = f*(c.p_phi - c.q*e0*psi)
@@ -13,7 +14,12 @@ function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate
 end
 
 function get_pitch{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
-    return [get_pitch(M, c, p...) for p in zip(path.r,path.z)]
+    n = length(path.r)
+    pitch = zeros(eltype(path.r),n)
+    @inbounds for i=1:n
+        pitch[i] = get_pitch(M, c, path.r[i], path.z[i])
+    end
+    return pitch
 end
 
 function get_pitch{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibrium, c::T, r::S, z::S)
@@ -22,7 +28,13 @@ function get_pitch{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibriu
 end
 
 function get_pitch(M::AxisymmetricEquilibrium, o::Orbit)
-    return [get_pitch(M, o.coordinate, p...) for p in zip(o.path.r,o.path.z)]
+    path = o.path
+    n = length(path.r)
+    pitch = zeros(eltype(path.r),n)
+    @inbounds for i=1:n
+        pitch[i] = get_pitch(M, o.coordinate, path.r[i], path.z[i])
+    end
+    return pitch
 end
 
 function classify(path::OrbitPath, pitch, axis)

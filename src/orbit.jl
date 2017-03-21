@@ -3,10 +3,12 @@ immutable OrbitPath{T}
     z::Vector{T}
     phi::Vector{T}
     dt::Vector{T}
+    dl::Vector{T}
+    prz::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64)
-    OrbitPath(T[],T[],T[],T[])
+    OrbitPath(T[],T[],T[],T[],T[],T[])
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -120,8 +122,23 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     ydot = zeros(3)
     flag = f(0.0, r0, ydot)
     dt[end] = sqrt((r[end] - r[1])^2 + (z[end] - z[1])^2)/norm(ydot[1:2:3])
+    T_p = sum(dt)
+    omega_p = 2pi/T_p
+    omega_t = abs((phi[end]-phi[1]))/T_p
 
-    path = OrbitPath(r,z,phi,dt)
+    # P_rz
+    prz = zeros(n)
+    dl = zeros(n)
+    @inbounds for i=1:n
+        ydot .= 0.0
+        flag = f(0.0, res[i,:], ydot)
+        v = norm(ydot[1:2:3])
+        prz[i] = 1/(T_p*v)
+        dl[i] = v*dt[i]
+
+    end
+
+    path = OrbitPath(r,z,phi,dt,dl,prz)
     pitch = get_pitch(M, hc, path)
     rmax, ind = findmax(r)
     pitch_rmax = pitch[ind]
@@ -132,10 +149,6 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
         #warn("Incomplete orbit")
         return Orbit(c, path)
     end
-
-    T_p = sum(dt)
-    omega_p = 2pi/T_p
-    omega_t = abs((phi[end]-phi[1]))/T_p
 
     class = classify(path, pitch, M.axis)
 
