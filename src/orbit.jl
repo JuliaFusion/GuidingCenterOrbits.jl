@@ -2,13 +2,12 @@ immutable OrbitPath{T}
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
+    pitch::Vector{T}
     dt::Vector{T}
-    dl::Vector{T}
-    prz::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64)
-    OrbitPath(T[],T[],T[],T[],T[],T[])
+    OrbitPath(T[],T[],T[],T[],T[])
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -127,21 +126,20 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     omega_t = abs((phi[end]-phi[1]))/T_p
 
     # P_rz
-    prz = zeros(n)
-    dl = zeros(n)
-    @inbounds for i=1:n
-        ydot .= 0.0
-        flag = f(0.0, res[i,:], ydot)
-        v = norm(ydot[1:2:3])
-        prz[i] = 1/(T_p*v)
-        dl[i] = v*dt[i]
+#    prz = zeros(n)
+#    dl = zeros(n)
+#    @inbounds for i=1:n
+#        ydot .= 0.0
+#        flag = f(0.0, res[i,:], ydot)
+#        v = norm(ydot[1:2:3])
+#        prz[i] = 1/(T_p*v)
+#        dl[i] = v*dt[i]
+#    end
 
-    end
-
-    path = OrbitPath(r,z,phi,dt,dl,prz)
-    pitch = get_pitch(M, hc, path)
+    pitch = get_pitch(M, hc, r, z)
     rmax, ind = findmax(r)
     pitch_rmax = pitch[ind]
+    path = OrbitPath(r,z,phi,pitch,dt)
 
     c = EPRCoordinate(E, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
 
