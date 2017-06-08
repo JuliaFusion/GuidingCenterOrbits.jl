@@ -1,4 +1,4 @@
-immutable OrbitPath{T}
+struct OrbitPath{T}
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
@@ -13,7 +13,7 @@ end
 
 Base.length(op::OrbitPath) = length(op.r)
 
-immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
+struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
     omega_p::T
@@ -31,15 +31,16 @@ end
 
 function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T)
     oc = HamiltonianCoordinate(M, c)
-    res = DiffBase.GradientResult(rand(2))
     function vgc(t, y, ydot)
         ri = [y[1],y[3]]
-        psi = M.psi(ri)
-        g = M.g(psi)
-        B = M.B(ri)
-        ForwardDiff.gradient!(res, M.b, ri)
-        gradB = DiffBase.gradient(res)
-        babs = DiffBase.value(res)
+        r = y[1]
+        z = y[3]
+        psi = M.psi_rz[r,z]
+        g = M.g[psi]
+
+        B = Bfield(M,r,z)
+        babs = M.b[r,z]
+        gradB = gradient(M.b,r,z)
 
         Wperp = oc.mu*babs
         Wpara = 1e3*e0*oc.energy - Wperp
@@ -61,7 +62,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     #Function to check if in function
     hits_boundary = [false]
     in_boundary = function ib(x)
-        if (M.r_domain[1] < x[1] < M.r_domain[2]) && (M.z_domain[1] < x[3] < M.z_domain[2])
+        if (M.r[1] < x[1] < M.r[end]) && (M.z[1] < x[3] < M.z[end])
             return true
         else
             hits_boundary[1] = true
@@ -135,7 +136,6 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
         v = norm(ydot[1:2:3])
         prz[i] = 1/(T_p*v)
         dl[i] = v*dt[i]
-
     end
 
     path = OrbitPath(r,z,phi,dt,dl,prz)
@@ -184,7 +184,6 @@ function Base.show(io::IO, orbit::Orbit)
 end
 
 function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
-#    pyplot()
     t = cumsum(o.path.dt)*1e6
     n = length(t)
     r = o.path.r

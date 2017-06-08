@@ -1,8 +1,7 @@
 function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
-    rz = [r,z]
-    psi = M.psi(rz)
-    g = M.g([psi])
-    babs = M.b(rz)
+    psi = M.psi_rz[r,z]
+    g = M.g[psi]
+    babs = M.b[r,z]
 
     f = -babs/(sqrt(2e3*e0*c.energy*mass_u*c.amu)*g*M.sigma)
     pitch = f*(c.p_phi - c.q*e0*psi)

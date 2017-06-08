@@ -1,68 +1,75 @@
-function B_function(f_psi,f_g)
-    res = DiffBase.GradientResult(rand(2))
-    function B(ri)
-        ForwardDiff.gradient!(res,f_psi, ri)
-        psi = DiffBase.value(res)
-        grad_psi = -DiffBase.gradient(res) #negative because "ribbon" polodial flux definintion
-
-        br = -grad_psi[2]/ri[1]
-        bz = grad_psi[1]/ri[1]
-        bt = f_g([psi])/ri[1]
-
-        return [br,bt,bz]
-    end
+struct AxisymmetricEquilibrium{T<:Real, S<:Range{T},
+                               R<:AbstractArray{T,2},
+                               Q<:AbstractArray{T,1}}
+    r::S               # Radius/R range
+    z::S               # Elevation/Z range
+    psi::S             # "Ribbon" Polodial Flux range (polodial flux from magnetic axis)
+    psi_rz::R          # "Ribbon" Polodial Flux on RZ grid (polodial flux from magnetic axis)
+    g::Q               # Polodial Current
+    p::Q               # Plasma pressure
+    b::R               # Magnetic field magnitude
+    j::R               # Plasma Current magnitude
+    axis::NTuple{2, T} # Magnetic Axis (raxis,zaxis)
+    sigma::Int         # sign(dot(J,B))
 end
 
-function J_function(f_psi,f_g, f_p)
-    res = DiffBase.GradientResult(rand(2))
-    function J(ri)
-        ForwardDiff.gradient!(res,f_psi, ri)
-        psi = DiffBase.value(res)
-        grad_psi = -DiffBase.gradient(res) #negative because "ribbon" polodial flux definintion
+function AxisymmetricEquilibrium(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, axis::NTuple{2,T}) where {T <: Real}
 
-        g = f_g([psi])
-        gp= -ForwardDiff.derivative(f_g, psi)
-        pp = -ForwardDiff.derivative(f_p, psi)
+    psi_max = maximum(psi_rz)
+    dpsi = step(psi)
+    psi_ext = psi[1]:dpsi:psi_max
+    g_ext = [i <= length(g) ? g[i] : g[end] for i=1:length(psi_ext)]
+    p_ext = [i <= length(p) ? p[i] : 0.0 for i=1:length(psi_ext)]
 
-        jr = -gp*grad_psi[2]/(ri[1]*mu0)
-        jz = gp*grad_psi[1]/(ri[1]*mu0)
-        jt = ri[1]*pp + g*gp/(ri[1]*mu0)
+    psi_rz_itp = scale(interpolate(psi_rz, BSpline(Cubic(Line())), OnGrid()), r, z)
+    g_itp = scale(interpolate(g_ext, BSpline(Cubic(Line())), OnGrid()), psi_ext)
+    p_itp = scale(interpolate(p_ext, BSpline(Cubic(Line())), OnGrid()), psi_ext)
 
-        return [jr,jt,jz]
-    end
+    b = [norm(Bfield(psi_rz_itp,g_itp,rr,zz)) for rr in r, zz in z]
+    b_itp = scale(interpolate(b, BSpline(Cubic(Line())), OnGrid()), r, z)
+
+    j = [norm(Jfield(psi_rz_itp,g_itp,p_itp,rr,zz)) for rr in r, zz in z]
+    j_itp = scale(interpolate(j, BSpline(Cubic(Line())), OnGrid()), r, z)
+
+    rr = axis[1] + (r[end] - axis[1])/10
+    zz = axis[2] + (z[end] - axis[2])/10
+
+    sigma = Int(sign(dot(Jfield(psi_rz_itp,g_itp,p_itp,rr,zz), Bfield(psi_rz_itp,g_itp,rr,zz))))
+
+    AxisymmetricEquilibrium(r, z, psi_ext, psi_rz_itp, g_itp, p_itp, b_itp, j_itp, axis, sigma)
 end
 
-type AxisymmetricEquilibrium{T}
-    r_domain::NTuple{2,T}   #(rmin, rmax)
-    z_domain::NTuple{2,T}   #(zmin, zmax)
-    psi_domain::NTuple{2,T} #(psimin, psimax)
+function Bfield(psi_rz, g, r, z)
+    psi = psi_rz[r,z]
+    gval = g[psi]
+    grad_psi = -gradient(psi_rz, r, z) #negative because "ribbon" polodial flux definintion
 
-    psi::Function  # "Ribbon" Polodial Flux (polodial flux from magnetic axis)
-    g::Function    # Polodial Current
-    b::Function    # Magnetic field magnitude
-    p::Function    # Plasma pressure
-    B::Function    # Magnetic Field Vector
-    J::Function    # Current Density Vector
-    axis::NTuple{2, T} #Magnetic Axis (raxis,zaxis)
-    sigma::Int     #sign(dot(J,B))
+    br = -grad_psi[2]/r
+    bz = grad_psi[1]/r
+    bt = gval/r
 
+    return [br,bt,bz]
 end
 
-function AxisymmetricEquilibrium{S}(r_domain::NTuple{2,S},
-                                    z_domain::NTuple{2,S},
-                                    psi_domain::NTuple{2,S},
-                                    psi, g, p, axis::NTuple{2,S})
-    B = B_function(psi, g)
-    J = J_function(psi, g, p)
+function Bfield(M::AxisymmetricEquilibrium, r, z)
+    Bfield(M.psi_rz, M.g, r, z)
+end
 
-    r = linspace(r_domain...,100)
-    z = linspace(z_domain...,100)
-    babs = [norm(B([rr,zz])) for rr in r, zz in z]
-    b = interpolate(babs, (r,z), BicubicSpline(), Irregular{2,Val{size(babs)}}, Value(0.0))
+function Jfield(psi_rz, g, p, r, z)
+    psi = psi_rz[r,z]
+    gval = g[psi]
+    grad_psi = -gradient(psi_rz, r, z) #negative because "ribbon" polodial flux definintion
 
-    ri = collect(axis)  + [r_domain[2] - axis[1], z_domain[2] - axis[2]]/10
+    gp = -gradient(g, psi)[1]
+    pp = -gradient(p, psi)[1]
 
-    sigma = sign(dot(J(ri), B(ri)))
+    jr = -gp*grad_psi[2]/(r*mu0)
+    jz = gp*grad_psi[1]/(r*mu0)
+    jt = r*pp + gval*gp/(r*mu0)
 
-    AxisymmetricEquilibrium{S}(r_domain,z_domain,psi_domain, psi, g, b, p, B, J, axis, sigma)
+    return [jr,jt,jz]
+end
+
+function Jfield(M::AxisymmetricEquilibrium, r, z)
+    Jfield(M.psi_rz, M.g, M.p, r, z)
 end

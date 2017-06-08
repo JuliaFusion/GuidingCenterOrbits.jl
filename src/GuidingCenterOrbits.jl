@@ -1,8 +1,6 @@
 module GuidingCenterOrbits
 
-using DiffBase
-using ForwardDiff
-using InterpolatingFunctions
+using Interpolations
 using Contour
 using Sundials
 using Plots
