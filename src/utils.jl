@@ -12,13 +12,17 @@ function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate
     return clamp(pitch,-1.0,1.0)
 end
 
-function get_pitch{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
-    n = length(path.r)
-    pitch = zeros(eltype(path.r),n)
+function get_pitch{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S})
+    n = length(r)
+    pitch = zeros(S,n)
     @inbounds for i=1:n
-        pitch[i] = get_pitch(M, c, path.r[i], path.z[i])
+        pitch[i] = get_pitch(M, c, r[i], z[i])
     end
     return pitch
+end
+
+function get_pitch{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
+    return get_pitch(M, c, path.r, path.z)
 end
 
 function get_pitch{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibrium, c::T, r::S, z::S)
