@@ -1,6 +1,6 @@
-struct AxisymmetricEquilibrium{T<:Real, S<:Range{T},
-                               R<:AbstractArray{T,2},
-                               Q<:AbstractArray{T,1}}
+immutable AxisymmetricEquilibrium{T<:Real, S<:Range{Float64},
+                               R<:AbstractArray{Float64,2},
+                               Q<:AbstractArray{Float64,1}}
     r::S               # Radius/R range
     z::S               # Elevation/Z range
     psi::S             # "Ribbon" Polodial Flux range (polodial flux from magnetic axis)
@@ -13,11 +13,12 @@ struct AxisymmetricEquilibrium{T<:Real, S<:Range{T},
     sigma::Int         # sign(dot(J,B))
 end
 
-function AxisymmetricEquilibrium(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, axis::NTuple{2,T}) where {T <: Real}
+function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, axis::NTuple{2,T})
 
     psi_max = maximum(psi_rz)
     dpsi = step(psi)
     psi_ext = psi[1]:dpsi:psi_max
+    psi_ext = linspace(psi_ext[1],psi_ext[end],length(psi_ext))
     g_ext = [i <= length(g) ? g[i] : g[end] for i=1:length(psi_ext)]
     p_ext = [i <= length(p) ? p[i] : 0.0 for i=1:length(psi_ext)]
 

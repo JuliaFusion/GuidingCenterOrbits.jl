@@ -3,7 +3,7 @@ module GuidingCenterOrbits
 using Interpolations
 using Contour
 using Sundials
-using Plots
+#using Plots
 
 const mass_u = 1.6605402e-27
 const e0 = 1.60217733e-19

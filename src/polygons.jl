@@ -1,4 +1,4 @@
-mutable struct Polygon{T}
+type Polygon{T}
     vertices::Vector{NTuple{2,T}}
 end
 Polygon() = Polygon(NTuple{2,Float64}[])

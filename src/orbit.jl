@@ -1,4 +1,4 @@
-struct OrbitPath{T}
+immutable OrbitPath{T}
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
@@ -12,7 +12,7 @@ end
 
 Base.length(op::OrbitPath) = length(op.r)
 
-struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
+immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
     omega_p::T
@@ -20,8 +20,8 @@ struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     path::OrbitPath{T}
 end
 
-function Orbit{T}(c::AbstractOrbitCoordinate{T})
-    return Orbit(c, :incomplete, zero(T), zero(T), OrbitPath(T))
+function Orbit{T}(c::AbstractOrbitCoordinate{T},class=:incomplete)
+    return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
 end
 
 function Orbit{T}(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T})
@@ -165,7 +165,7 @@ end
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, store_path=true)
     o = get_orbit(M, c.energy, c.pitch, c.r, c.z, c.amu, c.q, nstep, tmax)
     if o.class != :incomplete
-        maximum(o.path.r) > c.r && return Orbit(c)
+        maximum(o.path.r) > c.r && return Orbit(c,:degenerate)
     end
     if !store_path
         o = Orbit(o.coordinate, o.class, o.omega_p, o.omega_t, OrbitPath(typeof(o.omega_p)))
@@ -175,35 +175,35 @@ end
 
 function Base.show(io::IO, orbit::Orbit)
     class_str = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
-                     :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ")
+                     :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",:degenerate=>"Degenerate ")
     println(io, typeof(orbit))
     println(io, class_str[orbit.class],"Orbit:")
     @printf(io, " ωₚ = %.3f rad/ms\n", orbit.omega_p*1e-3)
     @printf(io, " ωₜ = %.3f rad/ms\n", orbit.omega_t*1e-3)
 end
 
-function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
-    t = cumsum(o.path.dt)*1e6
-    n = length(t)
-    r = o.path.r
-    z = o.path.z
-    phi = o.path.phi
-    x = r.*cos.(phi)
-    y = r.*sin.(phi)
-    l = @layout [a{0.38w} b]
-    p1 = plot(layout=l)
-
-    rr = vec(hcat(r[1:end-1],r[2:end],fill(NaN,n-1))')
-    zz = vec(hcat(z[1:end-1],z[2:end],fill(NaN,n-1))')
-    plot!(p1,rr,zz,line_z=t,c=:bluesreds,label=o.class,
-          colorbar=false,subplot=1,xlim=rlim,
-          ylim=zlim,xlabel="R [m]",ylabel="Z [m]",aspect_ratio=1.0)
-
-    xx = vec(hcat(x[1:end-1],x[2:end],fill(NaN,n-1))')
-    yy = vec(hcat(y[1:end-1],y[2:end],fill(NaN,n-1))')
-    plot!(p1,xx,yy,line_z=t,c=:bluesreds,label=o.class,subplot=2,
-          xlim=xlim,ylim=ylim,xlabel="X [m]",
-          ylabel="Y [m]",aspect_ratio=1.0)
-
-    return p1
-end
+#function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
+#    t = cumsum(o.path.dt)*1e6
+#    n = length(t)
+#    r = o.path.r
+#    z = o.path.z
+#    phi = o.path.phi
+#    x = r.*cos.(phi)
+#    y = r.*sin.(phi)
+#    l = @layout [a{0.38w} b]
+#    p1 = plot(layout=l)
+#
+#    rr = vec(hcat(r[1:end-1],r[2:end],fill(NaN,n-1))')
+#    zz = vec(hcat(z[1:end-1],z[2:end],fill(NaN,n-1))')
+#    plot!(p1,rr,zz,line_z=t,c=:bluesreds,label=o.class,
+#          colorbar=false,subplot=1,xlim=rlim,
+#          ylim=zlim,xlabel="R [m]",ylabel="Z [m]",aspect_ratio=1.0)
+#
+#    xx = vec(hcat(x[1:end-1],x[2:end],fill(NaN,n-1))')
+#    yy = vec(hcat(y[1:end-1],y[2:end],fill(NaN,n-1))')
+#    plot!(p1,xx,yy,line_z=t,c=:bluesreds,label=o.class,subplot=2,
+#          xlim=xlim,ylim=ylim,xlabel="X [m]",
+#          ylabel="Y [m]",aspect_ratio=1.0)
+#
+#    return p1
+#end
