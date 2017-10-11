@@ -15,17 +15,35 @@ end
 
 function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu, q=1)
     psi = M.psi_rz[R,M.axis[2]]
-    rmin = R-0.01
-    rmax = R+0.01
-    r = linspace(rmin,rmax,1000)
-    zmin = M.axis[2]-0.01
-    zmax = M.axis[2]+0.01
-    z = linspace(zmin,zmax,1000)
-    psirz = [M.psi_rz[rr,zz] for rr in r, zz in z]
-    l = Contour.contour(r,z,psirz,psi)
-    rc, zc = coordinates(lines(l)[1])
-    i = indmax(rc)
-    return EPRCoordinate(energy, pitch, rc[i], zc[i], amu, q)
+    c = 0
+    Z = M.axis[2]
+    Rc = R
+    Zc = Z
+    while c < 1000
+        rmin = R-0.01
+        rmax = R+0.01
+        r = linspace(rmin,rmax,1000)
+        zmin = Z-0.01
+        zmax = Z+0.01
+        z = linspace(zmin,zmax,1000)
+        psirz = [M.psi_rz[rr,zz] for rr in r, zz in z]
+        l = Contour.contour(r,z,psirz,psi)
+        rc, zc = coordinates(lines(l)[1])
+        i = indmax(rc)
+        if (rc[i] == rmax || rc[i] == rmin) || (zc[i] == zmax || zc[i] == zmin)
+            R = rc[i]
+            Z = zc[i]
+            c += 1
+            continue
+        end
+        Rc = rc[i]
+        Zc = zc[i]
+        break
+    end
+    if c >= 1000
+        error("Hit Max Iteration")
+    end
+    return EPRCoordinate(energy, pitch, Rc, Zc, amu, q)
 end
 
 function Base.show(io::IO, c::EPRCoordinate)
