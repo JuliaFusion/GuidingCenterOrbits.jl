@@ -13,37 +13,14 @@ function EPRCoordinate(energy, pitch, r, z; amu=H2_amu, q = 1)
     return EPRCoordinate(energy, pitch, r, z, amu, q)
 end
 
-function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu, q=1)
-    psi = M.psi_rz[R,M.axis[2]]
-    c = 0
-    Z = M.axis[2]
-    Rc = R
-    Zc = Z
-    while c < 1000
-        rmin = R-0.01
-        rmax = R+0.01
-        r = linspace(rmin,rmax,1000)
-        zmin = Z-0.01
-        zmax = Z+0.01
-        z = linspace(zmin,zmax,1000)
-        psirz = [M.psi_rz[rr,zz] for rr in r, zz in z]
-        l = Contour.contour(r,z,psirz,psi)
-        rc, zc = coordinates(lines(l)[1])
-        i = indmax(rc)
-        if (rc[i] == rmax || rc[i] == rmin) || (zc[i] == zmax || zc[i] == zmin)
-            R = rc[i]
-            Z = zc[i]
-            c += 1
-            continue
-        end
-        Rc = rc[i]
-        Zc = zc[i]
-        break
-    end
-    if c >= 1000
-        error("Hit Max Iteration")
-    end
-    return EPRCoordinate(energy, pitch, Rc, Zc, amu, q)
+function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu, q=1, dz=0.2)
+    zaxis = M.axis[2]
+    zmax = zaxis + dz
+    zmin = zaxis - dz
+    res = optimize(x->M.psi_rz[R,x], zmin, zmax)
+    Z = Optim.minimizer(res)
+    (Z == zmax || Z == zmin) && error(@sprintf("Unable to find starting Z value with dz = %.2f. Increase dz",dz))
+    return EPRCoordinate(energy, pitch, R, Z, amu, q)
 end
 
 function Base.show(io::IO, c::EPRCoordinate)
@@ -94,6 +71,6 @@ end
 function Base.show(io::IO, c::HamiltonianCoordinate)
     println(io,typeof(c))
     @printf(io," E = %.3f keV\n",c.energy)
-    @printf(io," μ₀ = %.3f\n",c.mu)
-    @printf(io," Pᵩ = %.3f\n",c.p_phi)
+    @printf(io," μ₀ = %.3e\n",c.mu)
+    @printf(io," Pᵩ = %.3e\n",c.p_phi)
 end

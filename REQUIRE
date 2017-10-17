@@ -1,3 +1,4 @@
-julia 0.4
+julia 0.6
 ForwardDiff v0.3.3
+Optim
 Sundials 0.6.0

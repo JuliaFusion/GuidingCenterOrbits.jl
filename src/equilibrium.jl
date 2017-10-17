@@ -7,13 +7,14 @@ immutable AxisymmetricEquilibrium{T<:Real, S<:Range{Float64},
     psi_rz::R          # "Ribbon" Polodial Flux on RZ grid (polodial flux from magnetic axis)
     g::Q               # Polodial Current
     p::Q               # Plasma pressure
+    q::Q               # Q profile
     b::R               # Magnetic field magnitude
     j::R               # Plasma Current magnitude
     axis::NTuple{2, T} # Magnetic Axis (raxis,zaxis)
     sigma::Int         # sign(dot(J,B))
 end
 
-function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, axis::NTuple{2,T})
+function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, q, axis::NTuple{2,T})
 
     psi_max = maximum(psi_rz)
     dpsi = step(psi)
@@ -21,10 +22,12 @@ function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T
     psi_ext = linspace(psi_ext[1],psi_ext[end],length(psi_ext))
     g_ext = [i <= length(g) ? g[i] : g[end] for i=1:length(psi_ext)]
     p_ext = [i <= length(p) ? p[i] : 0.0 for i=1:length(psi_ext)]
+    q_ext = [i <= length(q) ? q[i] : q[end] for i=1:length(psi_ext)]
 
     psi_rz_itp = scale(interpolate(psi_rz, BSpline(Cubic(Line())), OnGrid()), r, z)
     g_itp = scale(interpolate(g_ext, BSpline(Cubic(Line())), OnGrid()), psi_ext)
     p_itp = scale(interpolate(p_ext, BSpline(Cubic(Line())), OnGrid()), psi_ext)
+    q_itp = scale(interpolate(q_ext, BSpline(Cubic(Line())), OnGrid()), psi_ext)
 
     b = [norm(Bfield(psi_rz_itp,g_itp,rr,zz)) for rr in r, zz in z]
     b_itp = scale(interpolate(b, BSpline(Cubic(Line())), OnGrid()), r, z)
@@ -37,7 +40,7 @@ function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T
 
     sigma = Int(sign(dot(Jfield(psi_rz_itp,g_itp,p_itp,rr,zz), Bfield(psi_rz_itp,g_itp,rr,zz))))
 
-    AxisymmetricEquilibrium(r, z, psi_ext, psi_rz_itp, g_itp, p_itp, b_itp, j_itp, axis, sigma)
+    AxisymmetricEquilibrium(r, z, psi_ext, psi_rz_itp, g_itp, p_itp, q_itp, b_itp, j_itp, axis, sigma)
 end
 
 function Bfield(psi_rz, g, r, z)
