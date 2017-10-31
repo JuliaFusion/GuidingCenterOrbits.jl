@@ -4,10 +4,11 @@ immutable OrbitPath{T}
     phi::Vector{T}
     pitch::Vector{T}
     dt::Vector{T}
+    dl::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64)
-    OrbitPath(T[],T[],T[],T[],T[])
+    OrbitPath(T[],T[],T[],T[],T[],T[])
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -128,19 +129,19 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
 
     # P_rz
 #    prz = zeros(n)
-#    dl = zeros(n)
-#    @inbounds for i=1:n
-#        ydot .= 0.0
-#        flag = f(0.0, res[i,:], ydot)
-#        v = norm(ydot[1:2:3])
+    dl = zeros(n)
+    @inbounds for i=1:n
+        ydot .= 0.0
+        flag = f(0.0, res[i,:], ydot)
+        v = norm(ydot[1:2:3])
 #        prz[i] = 1/(T_p*v)
-#        dl[i] = v*dt[i]
-#    end
+        dl[i] = v*dt[i]
+    end
 
     pitch = get_pitch(M, hc, r, z)
     rmax, ind = findmax(r)
     pitch_rmax = pitch[ind]
-    path = OrbitPath(r,z,phi,pitch,dt)
+    path = OrbitPath(r,z,phi,pitch,dt,dl)
 
     c = EPRCoordinate(E, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
 
@@ -171,6 +172,30 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tma
         o = Orbit(o.coordinate, o.class, o.omega_p, o.omega_t, OrbitPath(typeof(o.omega_p)))
     end
     return o
+end
+
+function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
+    L = sum(p.dl)*100 # cm
+    npart = length(p)
+    np = max(round(Int,L/mean_dl),nmin)
+    grps = partition(1:npart, round(Int,npart/np))
+    ngrps = length(grps)
+    r = zeros(T,ngrps)
+    z = zeros(T,ngrps)
+    phi = zeros(T,ngrps)
+    pitch = zeros(T,ngrps)
+    dt = zeros(T,ngrps)
+    dl = zeros(T,ngrps)
+    for (i, inds) in enumerate(grps)
+        fi = inds[1]
+        r[i] = p.r[fi]
+        z[i] = p.z[fi]
+        phi[i] = p.phi[fi]
+        pitch[i] = p.pitch[fi]
+        dt[i] = sum(p.dt[inds])
+        dl[i] = sum(p.dl[inds])
+    end
+    return OrbitPath(r,z,phi,pitch,dt,dl)
 end
 
 function Base.show(io::IO, orbit::Orbit)

@@ -3,6 +3,7 @@ module GuidingCenterOrbits
 using Interpolations
 using Sundials
 using Optim
+using Base.Iterators
 #using Plots
 
 const mass_u = 1.6605402e-27
