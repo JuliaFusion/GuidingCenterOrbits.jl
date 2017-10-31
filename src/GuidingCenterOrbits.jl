@@ -21,6 +21,6 @@ export Polygon, in_polygon
 export AxisymmetricEquilibrium
 export EPRCoordinate, HamiltonianCoordinate
 export get_pitch, hits_wall
-export Orbit, OrbitPath, get_orbit, plot_orbit
+export Orbit, OrbitPath, get_orbit, down_sample, plot_orbit
 
 end
