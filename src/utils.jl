@@ -1,4 +1,4 @@
-function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
+function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where T<:Real
     psi = M.psi_rz[r,z]
     g = M.g[psi]
     babs = M.b[r,z]
@@ -12,7 +12,7 @@ function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate
     return clamp(pitch,-1.0,1.0)
 end
 
-function get_pitch{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S})
+function get_pitch(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {S,T<:AbstractOrbitCoordinate}
     n = length(r)
     pitch = zeros(S,n)
     @inbounds for i=1:n
@@ -21,11 +21,11 @@ function get_pitch{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
     return pitch
 end
 
-function get_pitch{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
+function get_pitch(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where T<:AbstractOrbitCoordinate
     return get_pitch(M, c, path.r, path.z)
 end
 
-function get_pitch{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibrium, c::T, r::S, z::S)
+function get_pitch(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate,S<:Real}
     hc = HamiltonianCoordinate(M, c)
     return get_pitch(M, hc, r, z)
 end

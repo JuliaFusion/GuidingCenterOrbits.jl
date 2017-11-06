@@ -1,4 +1,4 @@
-immutable OrbitPath{T}
+struct OrbitPath{T}
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
@@ -13,7 +13,7 @@ end
 
 Base.length(op::OrbitPath) = length(op.r)
 
-immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
+struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
     omega_p::T
@@ -21,15 +21,15 @@ immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     path::OrbitPath{T}
 end
 
-function Orbit{T}(c::AbstractOrbitCoordinate{T},class=:incomplete)
+function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where T
     return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
 end
 
-function Orbit{T}(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T})
+function Orbit(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T}) where T
     return Orbit(c, :incomplete, zero(T), zero(T), op)
 end
 
-function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T)
+function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where T<:AbstractOrbitCoordinate
     oc = HamiltonianCoordinate(M, c)
     function vgc(t, y, ydot)
         ri = [y[1],y[3]]
@@ -174,7 +174,7 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tma
     return o
 end
 
-function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
+function down_sample(p::OrbitPath{T}; mean_dl=2.5, nmin=30) where T
     L = sum(p.dl)*100 # cm
     npart = length(p)
     np = max(round(Int,L/mean_dl),nmin)

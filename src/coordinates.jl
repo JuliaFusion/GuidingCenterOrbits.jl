@@ -1,6 +1,6 @@
-abstract AbstractOrbitCoordinate{T}
+abstract type AbstractOrbitCoordinate{T} end
 
-immutable EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
+struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T
     pitch::T
     r::T
@@ -30,7 +30,7 @@ function Base.show(io::IO, c::EPRCoordinate)
     @printf(io," Rmax = %.3f m\n",c.r)
 end
 
-immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
+struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T
     mu::T
     p_phi::T
