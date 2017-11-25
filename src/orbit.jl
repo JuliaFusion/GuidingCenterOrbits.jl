@@ -178,7 +178,7 @@ function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
     L = sum(p.dl)*100 # cm
     npart = length(p)
     np = max(round(Int,L/float(mean_dl)),nmin)
-    grps = partition(1:npart, round(Int,npart/float(np)))
+    grps = partition(1:npart, ceil(Int,npart/float(np)))
     ngrps = length(grps)
     r = zeros(T,ngrps)
     z = zeros(T,ngrps)
