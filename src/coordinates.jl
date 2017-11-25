@@ -1,4 +1,4 @@
-abstract AbstractOrbitCoordinate{T}
+abstract type AbstractOrbitCoordinate{T} end
 
 immutable EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T
