@@ -1,6 +1,6 @@
-immutable AxisymmetricEquilibrium{T<:Real, S<:Range{Float64},
-                               R<:AbstractArray{Float64,2},
-                               Q<:AbstractArray{Float64,1}}
+struct AxisymmetricEquilibrium{T<:Real, S<:Range{Float64},
+                            R<:AbstractArray{Float64,2},
+                            Q<:AbstractArray{Float64,1}}
     r::S               # Radius/R range
     z::S               # Elevation/Z range
     psi::S             # "Ribbon" Polodial Flux range (polodial flux from magnetic axis)
@@ -14,7 +14,7 @@ immutable AxisymmetricEquilibrium{T<:Real, S<:Range{Float64},
     sigma::Int         # sign(dot(J,B))
 end
 
-function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, q, axis::NTuple{2,T})
+function AxisymmetricEquilibrium(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, q, axis::NTuple{2,T}) where T<:Real
 
     psi_max = maximum(psi_rz)
     dpsi = step(psi)
