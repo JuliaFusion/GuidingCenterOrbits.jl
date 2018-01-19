@@ -5,10 +5,10 @@ function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate
 
     f = -babs/(sqrt(2e3*e0*c.energy*mass_u*c.amu)*g*M.sigma)
     pitch = f*(c.p_phi - c.q*e0*psi)
-    pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*c.energy)), 0.0))
-    if !isapprox(abs(pitch), pitchabs, atol=1.e-1)
-        warn("abs(pitch) != abspitch: ",pitchabs," ",pitch)
-    end
+    #pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*c.energy)), 0.0))
+    #if !isapprox(abs(pitch), pitchabs, atol=1.e-1)
+    #    warn("abs(pitch) != abspitch: ",pitchabs," ",pitch)
+    #end
     return clamp(pitch,-1.0,1.0)
 end
 

@@ -20,6 +20,7 @@ include("utils.jl")
 export Polygon, in_polygon
 export AxisymmetricEquilibrium
 export EPRCoordinate, HamiltonianCoordinate
+export normalized_hamiltonian
 export get_pitch, hits_wall
 export Orbit, OrbitPath, get_orbit, down_sample, plot_orbit
 

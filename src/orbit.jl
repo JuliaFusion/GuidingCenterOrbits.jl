@@ -16,8 +16,8 @@ Base.length(op::OrbitPath) = length(op.r)
 immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
-    omega_p::T
-    omega_t::T
+    tau_p::T
+    tau_t::T
     path::OrbitPath{T}
 end
 
@@ -39,18 +39,35 @@ function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
         g = M.g[psi]
 
         B = Bfield(M,r,z)
+        E = Efield(M,r,z)
+        J = Jfield(M,r,z)
+
         babs = M.b[r,z]
         gradB = gradient(M.b,r,z)
 
         Wperp = oc.mu*babs
-        Wpara = 1e3*e0*oc.energy - Wperp
+        Wpara = max(1e3*e0*oc.energy - Wperp, 0.0)
         vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.amu*mass_u*g)
 
-        vd = (1/(oc.q*e0))*(Wperp + 2*Wpara)*cross(B,[gradB[1],0.0,gradB[2]])/(babs^3)
-        vg = vpara*B/babs + vd
-        ydot[1] = vg[1]
-        ydot[2] = vg[2]/ri[1]
-        ydot[3] = vg[3]
+        # ExB Drift
+        v_exb = cross(E, B)/babs^2
+
+        # GradB Drift
+        b1 = cross(B,[gradB[1],0.0,gradB[2]])/(babs^3)
+        v_grad = Wperp*b1/(oc.q*e0)
+
+        # Curvature Drift
+        #bb = (dot([gradB[1],0.0,gradB[2]],B) - cross(B,mu0*J))/(babs^2)
+        #v_curv = 2*Wpara*cross(B,bb)/(babs^2)/(oc.q*e0)
+        v_curv = 2*Wpara*cross(B,[gradB[1],0.0,gradB[2]])/(babs^3)/(oc.q*e0)
+
+        # Guiding Center Velocity
+        v_gc = vpara*B/babs + v_exb + v_grad + v_curv
+
+        ydot[1] = v_gc[1]
+        ydot[2] = v_gc[2]/ri[1]
+        ydot[3] = v_gc[3]
+
         return Sundials.CV_SUCCESS
     end
 end
@@ -73,12 +90,15 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     #Function to check if orbit is complete
     r0 = [ri, 0.0, zi]
     r1 = copy(r0)
+    initial_dir_sgn = [0]
     initial_dir = [0]
     npol = [0]
-    orbit_complete = [false]
-    is_complete = function ic(r2)
+    poloidal_complete = [false]
+    one_poloidal = function icp(r2)
         if initial_dir[1] == 0
-            initial_dir[1] = sign(r2[3]-r0[3])
+            r = r2 - r0
+            initial_dir[1] = abs(r[1]) > abs(r[3]) ? 1 : 3
+            initial_dir_sgn[1] = sign(r[initial_dir[1]])
             r1[:] = convert(Vector, r2)
             return false
         end
@@ -86,11 +106,11 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
         dr10 = r1 - r0
         dr20 = r2 - r0
         dr21 = r2 - r1
-
-        if sign(dr10[3]*dr20[3]) < 0
+        ind = initial_dir[1]
+        if sign(dr10[ind]*dr20[ind]) < 0
             npol[1] = npol[1] + 1
-            if norm(dr10[1:2:3]) < norm(dr21[1:2:3]) && sign(dr20[3]) == initial_dir[1]
-                orbit_complete[1] = npol[1] == 2 || npol[1] == 4
+            if norm(dr10[1:2:3]) < norm(dr21[1:2:3]) && sign(dr20[ind]) == initial_dir_sgn[1]
+                poloidal_complete[1] = npol[1] == 2 || npol[1] == 4
                 return true
             end
         end
@@ -100,7 +120,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
 
     #Function to call between timesteps
     cb = function callback(mem, t, x)
-        !is_complete(x) && in_boundary(x)
+        !one_poloidal(x) && in_boundary(x)
     end
 
     if !in_boundary(r0)
@@ -119,13 +139,14 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     n = length(r)
     dt = fill(t[2]-t[1],n)
 
-    #correct for last timestep
+    #calculate transits
     ydot = zeros(3)
-    flag = f(0.0, r0, ydot)
-    dt[end] = sqrt((r[end] - r[1])^2 + (z[end] - z[1])^2)/norm(ydot[1:2:3])
-    T_p = sum(dt)
-    omega_p = 2pi/T_p
-    omega_t = abs((phi[end]-phi[1]))/T_p
+    flag = f(0.0,[r[end],phi[end],z[end]], ydot)
+    dtlast = sqrt((r[end] - r[1])^2 + (z[end] - z[1])^2)/norm(ydot[1:2:3])
+    dt[end] = dtlast
+    tau_p = sum(dt)
+    phiend = phi[end] + ydot[2]*dtlast
+    tau_t = 2pi*tau_p/abs(phiend - phi[1])
 
     # P_rz
 #    prz = zeros(n)
@@ -145,20 +166,19 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
 
     c = EPRCoordinate(E, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
 
-    if !orbit_complete[1] || hits_boundary[1]
-        #warn("Incomplete orbit")
+    if !poloidal_complete[1] || hits_boundary[1]
         return Orbit(c, path)
     end
 
     class = classify(path, pitch, M.axis)
 
-    return Orbit(c, class, omega_p, omega_t, path)
+    return Orbit(c, class, tau_p, tau_t, path)
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0, store_path=true)
     o = get_orbit(M, E, p, r, z, amu, q, nstep, tmax)
     if !store_path
-        o = Orbit(o.coordinate, o.class, o.omega_p, o.omega_t, OrbitPath(typeof(o.omega_p)))
+        o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.omega_p)))
     end
     return o
 end
@@ -169,7 +189,7 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tma
         maximum(o.path.r) > c.r && return Orbit(c,:degenerate)
     end
     if !store_path
-        o = Orbit(o.coordinate, o.class, o.omega_p, o.omega_t, OrbitPath(typeof(o.omega_p)))
+        o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.omega_p)))
     end
     return o
 end
@@ -201,11 +221,12 @@ end
 
 function Base.show(io::IO, orbit::Orbit)
     class_str = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
-                     :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",:degenerate=>"Degenerate ")
-    println(io, typeof(orbit))
-    println(io, class_str[orbit.class],"Orbit:")
-    @printf(io, " ωₚ = %.3f rad/ms\n", orbit.omega_p*1e-3)
-    @printf(io, " ωₜ = %.3f rad/ms\n", orbit.omega_t*1e-3)
+                     :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
+                     :degenerate=>"Degenerate ")
+    println(io, typeof(orbit.coordinate))
+    println(io, class_str[orbit.class],"Orbit Type:")
+    @printf(io, " τₚ = %.3f μs\n", orbit.tau_p*1e6)
+    @printf(io, " τₜ = %.3f μs\n", orbit.tau_t*1e6)
 end
 
 #function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
