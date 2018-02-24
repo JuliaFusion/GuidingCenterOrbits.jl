@@ -178,7 +178,7 @@ end
 function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0, store_path=true)
     o = get_orbit(M, E, p, r, z, amu, q, nstep, tmax)
     if !store_path
-        o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.omega_p)))
+        o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.tau_p)))
     end
     return o
 end
@@ -189,7 +189,7 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tma
         maximum(o.path.r) > c.r && return Orbit(c,:degenerate)
     end
     if !store_path
-        o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.omega_p)))
+        o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.tau_p)))
     end
     return o
 end
