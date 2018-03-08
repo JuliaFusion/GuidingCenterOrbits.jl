@@ -1,7 +1,7 @@
 abstract type AbstractOrbitCoordinate{T} end
 
 immutable EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
-    energy::T
+    energy::T # Kinetic Energy
     pitch::T
     r::T
     z::T
@@ -31,7 +31,7 @@ function Base.show(io::IO, c::EPRCoordinate)
 end
 
 immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
-    energy::T
+    energy::T #Kinetic + Potential Energy
     mu::T
     p_phi::T
     amu::T
@@ -46,42 +46,47 @@ function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::EPRCoordinate)
     psi = M.psi_rz[c.r,c.z]
     babs = M.b[c.r,c.z]
     g = M.g[psi]
-
-    E = c.energy
-    mu = e0*1e3*E*(1-c.pitch^2)/babs
-    Pphi = -M.sigma*sqrt(2e3*e0*E*mass_u*c.amu)*g*c.pitch/babs + c.q*e0*psi
-    return HamiltonianCoordinate(E,mu,Pphi,c.amu,c.q)
+    pot = M.phi[psi]
+    KE = c.energy
+    PE = 1e-3*pot
+    mu = e0*1e3*KE*(1-c.pitch^2)/babs
+    Pphi = -M.sigma*sqrt(2e3*e0*KE*mass_u*c.amu)*g*c.pitch/babs + c.q*e0*psi
+    return HamiltonianCoordinate(KE+PE,mu,Pphi,c.amu,c.q)
 end
 
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate)
     return c
 end
 
-function HamiltonianCoordinate(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1)
+function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
     psi = M.psi_rz[r,z]
     babs = M.b[r,z]
     g = M.g[psi]
 
-    mu = e0*1e3*E*(1-p^2)/babs
-    Pphi = -M.sigma*sqrt(2e3*e0*E*mass_u*amu)*g*p/babs + q*e0*psi
+    PE = 1e-3*M.phi[psi]
+    mu = e0*1e3*KE*(1-p^2)/babs
+    Pphi = -M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi
 
-    return HamiltonianCoordinate(E,mu,Pphi,amu,q)
+    return HamiltonianCoordinate(KE + PE, mu, Pphi, amu, q)
 end
 
-function normalized_hamiltonian(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1)
+function normalized_hamiltonian(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
     psi = M.psi_rz[r,z]
     babs = M.b[r,z]
     g = M.g[psi]
 
+    PE = M.phi[psi]*1e-3
     mu = abs(M.B0)*(1-p^2)/babs
-    Pphi = M.sigma*(-M.sigma*sqrt(2e3*e0*E*mass_u*amu)*g*p/babs + q*e0*psi)/(e0*M.psi[end])
+    Pphi = M.sigma*(-M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi)/(e0*M.psi[end])
 
-    return E, Pphi, mu
+    return KE + PE, Pphi, mu
 end
 
 function normalized_hamiltonian(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate)
     E = hc.energy
-    mu = (abs(M.B0)/(E*e0*1e3))*hc.mu
+    PE = M.phi[psi]*1e-3
+    KE = E - PE
+    mu = (abs(M.B0)/(KE*e0*1e3))*hc.mu
     Pphi = (M.sigma/(e0*M.psi[end]))*hc.p_phi
 
     return E, Pphi, mu

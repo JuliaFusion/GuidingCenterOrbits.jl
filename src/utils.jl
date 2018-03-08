@@ -40,6 +40,35 @@ function get_pitch(M::AxisymmetricEquilibrium, o::Orbit)
     return pitch
 end
 
+function get_kinetic_energy{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
+    psi = M.psi_rz[r,z]
+    return c.energy - 1e-3*M.phi[psi]
+end
+
+function get_kinetic_energy{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S})
+    n = length(r)
+    energy = zeros(S,n)
+    @inbounds for i=1:n
+        energy[i] = get_kinetic_energy(M, c, r[i], z[i])
+    end
+    return energy
+end
+
+function get_kinetic_energy{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
+    return get_kinetic_energy(M, c, path.r, path.z)
+end
+
+function get_kinetic_energy{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibrium, c::T, r::S, z::S)
+    hc = HamiltonianCoordinate(M, c)
+    return get_kinetic_energy(M, hc, r, z)
+end
+
+function get_kinetic_energy(M::AxisymmetricEquilibrium, o::Orbit)
+    path = o.path
+    c = o.coordinate
+    return get_kinetic_energy(M, o.coordinate, o.path)
+end
+
 function classify(path::OrbitPath, pitch, axis)
 
     pp = zip(path.r,path.z)

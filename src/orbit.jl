@@ -46,9 +46,8 @@ function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
         gradB = gradient(M.b,r,z)
 
         Wperp = oc.mu*babs
-        Wpara = max(1e3*e0*oc.energy - Wperp, 0.0)
         vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.amu*mass_u*g)
-
+        Wpara = 0.5*oc.amu*mass_u*vpara^2
         # ExB Drift
         v_exb = cross(E, B)/babs^2
 
@@ -160,11 +159,13 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     end
 
     pitch = get_pitch(M, hc, r, z)
+    energy = get_kinetic_energy(M, hc, r, z)
     rmax, ind = findmax(r)
     pitch_rmax = pitch[ind]
+    energy_rmax = energy[ind]
     path = OrbitPath(r,z,phi,pitch,dt,dl)
 
-    c = EPRCoordinate(E, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
+    c = EPRCoordinate(energy_rmax, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
 
     if !poloidal_complete[1] || hits_boundary[1]
         return Orbit(c, path)
@@ -228,29 +229,3 @@ function Base.show(io::IO, orbit::Orbit)
     @printf(io, " τₚ = %.3f μs\n", orbit.tau_p*1e6)
     @printf(io, " τₜ = %.3f μs\n", orbit.tau_t*1e6)
 end
-
-#function plot_orbit(o::Orbit;rlim=(1.0,2.5),zlim=(-1.25,1.25),xlim = (-2.3,2.3),ylim=(-2.3,2.3))
-#    t = cumsum(o.path.dt)*1e6
-#    n = length(t)
-#    r = o.path.r
-#    z = o.path.z
-#    phi = o.path.phi
-#    x = r.*cos.(phi)
-#    y = r.*sin.(phi)
-#    l = @layout [a{0.38w} b]
-#    p1 = plot(layout=l)
-#
-#    rr = vec(hcat(r[1:end-1],r[2:end],fill(NaN,n-1))')
-#    zz = vec(hcat(z[1:end-1],z[2:end],fill(NaN,n-1))')
-#    plot!(p1,rr,zz,line_z=t,c=:bluesreds,label=o.class,
-#          colorbar=false,subplot=1,xlim=rlim,
-#          ylim=zlim,xlabel="R [m]",ylabel="Z [m]",aspect_ratio=1.0)
-#
-#    xx = vec(hcat(x[1:end-1],x[2:end],fill(NaN,n-1))')
-#    yy = vec(hcat(y[1:end-1],y[2:end],fill(NaN,n-1))')
-#    plot!(p1,xx,yy,line_z=t,c=:bluesreds,label=o.class,subplot=2,
-#          xlim=xlim,ylim=ylim,xlabel="X [m]",
-#          ylabel="Y [m]",aspect_ratio=1.0)
-#
-#    return p1
-#end
