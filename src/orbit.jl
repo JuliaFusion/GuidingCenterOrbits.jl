@@ -40,7 +40,7 @@ function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
 
         B = Bfield(M,r,z)
         E = Efield(M,r,z)
-        J = Jfield(M,r,z)
+        #J = Jfield(M,r,z)
 
         babs = M.b[r,z]
         gradB = gradient(M.b,r,z)
@@ -48,6 +48,7 @@ function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
         Wperp = oc.mu*babs
         vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.amu*mass_u*g)
         Wpara = 0.5*oc.amu*mass_u*vpara^2
+
         # ExB Drift
         v_exb = cross(E, B)/babs^2
 
@@ -71,7 +72,7 @@ function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
     end
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, nstep::Int, tmax)
+function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, nstep::Int, tmax, one_transit)
 
     hc = HamiltonianCoordinate(M, E, pitch_i, ri, zi, amu=amu, q=q)
 
@@ -92,8 +93,11 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     initial_dir_sgn = [0]
     initial_dir = [0]
     npol = [0]
+    npol_steps = [0]
     poloidal_complete = [false]
     one_poloidal = function icp(r2)
+        poloidal_complete[1] && return false
+        npol_steps[1] = npol_steps[1] + 1
         if initial_dir[1] == 0
             r = r2 - r0
             initial_dir[1] = abs(r[1]) > abs(r[3]) ? 1 : 3
@@ -119,7 +123,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
 
     #Function to call between timesteps
     cb = function callback(mem, t, x)
-        !one_poloidal(x) && in_boundary(x)
+        !(one_poloidal(x) && one_transit) && in_boundary(x)
     end
 
     if !in_boundary(r0)
@@ -140,11 +144,16 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
 
     #calculate transits
     ydot = zeros(3)
-    flag = f(0.0,[r[end],phi[end],z[end]], ydot)
-    dtlast = sqrt((r[end] - r[1])^2 + (z[end] - z[1])^2)/norm(ydot[1:2:3])
-    dt[end] = dtlast
-    tau_p = sum(dt)
-    phiend = phi[end] + ydot[2]*dtlast
+    nlast = npol_steps[1]
+    flag = f(0.0,[r[nlast],phi[nlast],z[nlast]], ydot)
+    dtlast = sqrt((r[nlast] - r[1])^2 + (z[nlast] - z[1])^2)/norm(ydot[1:2:3])
+    if one_transit
+        dt[end] = dtlast
+        tau_p = sum(dt)
+    else
+        tau_p = sum(dt[1:nlast-1]) + dtlast
+    end
+    phiend = phi[nlast] + ydot[2]*dtlast
     tau_t = 2pi*tau_p/abs(phiend - phi[1])
 
     # P_rz
@@ -171,21 +180,21 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
         return Orbit(c, path)
     end
 
-    class = classify(path, pitch, M.axis)
+    class = classify(path, pitch, M.axis, n=nlast)
 
     return Orbit(c, class, tau_p, tau_t, path)
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0, store_path=true)
-    o = get_orbit(M, E, p, r, z, amu, q, nstep, tmax)
+function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0, store_path=true, one_transit=true)
+    o = get_orbit(M, E, p, r, z, amu, q, nstep, tmax, one_transit)
     if !store_path
         o = Orbit(o.coordinate, o.class, o.tau_p, o.tau_t, OrbitPath(typeof(o.tau_p)))
     end
     return o
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, store_path=true)
-    o = get_orbit(M, c.energy, c.pitch, c.r, c.z, c.amu, c.q, nstep, tmax)
+function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, store_path=true, one_transit=true)
+    o = get_orbit(M, c.energy, c.pitch, c.r, c.z, c.amu, c.q, nstep, tmax, one_transit)
     if o.class != :incomplete
         maximum(o.path.r) > c.r && return Orbit(c,:degenerate)
     end

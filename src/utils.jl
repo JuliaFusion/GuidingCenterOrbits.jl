@@ -2,10 +2,11 @@ function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate
     psi = M.psi_rz[r,z]
     g = M.g[psi]
     babs = M.b[r,z]
-
-    f = -babs/(sqrt(2e3*e0*c.energy*mass_u*c.amu)*g*M.sigma)
+    phi = M.phi[psi]
+    KE = c.energy - 1e-3*phi
+    f = -babs/(sqrt(2e3*e0*KE*mass_u*c.amu)*g*M.sigma)
     pitch = f*(c.p_phi - c.q*e0*psi)
-    #pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*c.energy)), 0.0))
+    #pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*KE)), 0.0))
     #if !isapprox(abs(pitch), pitchabs, atol=1.e-1)
     #    warn("abs(pitch) != abspitch: ",pitchabs," ",pitch)
     #end
@@ -69,9 +70,9 @@ function get_kinetic_energy(M::AxisymmetricEquilibrium, o::Orbit)
     return get_kinetic_energy(M, o.coordinate, o.path)
 end
 
-function classify(path::OrbitPath, pitch, axis)
+function classify(path::OrbitPath, pitch, axis; n=length(path))
 
-    pp = zip(path.r,path.z)
+    pp = take(zip(path.r,path.z),n)
     op = Polygon()
     for p in pp
         push!(op.vertices,p)

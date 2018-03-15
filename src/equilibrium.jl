@@ -13,9 +13,10 @@ mutable struct AxisymmetricEquilibrium{T<:Real, S<:Range{Float64},
     j::R               # Plasma Current magnitude
     axis::NTuple{2, T} # Magnetic Axis (raxis,zaxis)
     sigma::Int         # sign(dot(J,B))
+    flux::T            # Enclosed Poloidal Flux
 end
 
-function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, q, phi, axis::NTuple{2,T})
+function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T}, psi_rz, g, p, q, phi, axis::NTuple{2,T}, flux)
 
     psi_max = maximum(psi_rz)
     dpsi = step(psi)
@@ -43,16 +44,16 @@ function AxisymmetricEquilibrium{T<:Real}(r::Range{T}, z::Range{T}, psi::Range{T
 
     sigma = Int(sign(dot(Jfield(psi_rz_itp,g_itp,p_itp,rr,zz), Bfield(psi_rz_itp,g_itp,rr,zz))))
 
-    AxisymmetricEquilibrium(r, z, psi_ext, psi_rz_itp, g_itp, p_itp, q_itp, phi_itp, b_itp, j_itp, axis, sigma)
+    AxisymmetricEquilibrium(r, z, psi_ext, psi_rz_itp, g_itp, p_itp, q_itp, phi_itp, b_itp, j_itp, axis, sigma, flux)
 end
 
 function Bfield(psi_rz, g, r, z)
     psi = psi_rz[r,z]
     gval = g[psi]
-    grad_psi = -gradient(psi_rz, r, z) #negative because "ribbon" polodial flux definition
+    grad_psi = gradient(psi_rz, r, z)
 
-    br = -grad_psi[2]/r
-    bz = grad_psi[1]/r
+    br = grad_psi[2]/r
+    bz = -grad_psi[1]/r
     bt = gval/r
 
     return [br,bt,bz]
@@ -65,13 +66,13 @@ end
 function Jfield(psi_rz, g, p, r, z)
     psi = psi_rz[r,z]
     gval = g[psi]
-    grad_psi = -gradient(psi_rz, r, z) #negative because "ribbon" polodial flux definition
+    grad_psi = gradient(psi_rz, r, z)
 
     gp = -gradient(g, psi)[1]
     pp = -gradient(p, psi)[1]
 
-    jr = -gp*grad_psi[2]/(r*mu0)
-    jz = gp*grad_psi[1]/(r*mu0)
+    jr = gp*grad_psi[2]/(r*mu0)
+    jz = -gp*grad_psi[1]/(r*mu0)
     jt = r*pp + gval*gp/(r*mu0)
 
     return [jr,jt,jz]
@@ -83,7 +84,7 @@ end
 
 function Efield(psi_rz, phi, r, z, Bpol)
     psi = psi_rz[r,z]
-    grad_psi = -gradient(psi_rz, r, z) #negative because "ribbon" poloidal flux definition
+    grad_psi = gradient(psi_rz, r, z)
     grad_psi = grad_psi/norm(grad_psi)
 
     Er = -r*Bpol*gradient(phi, psi)[1]
