@@ -100,7 +100,11 @@ function classify(path::OrbitPath, pitch, axis; n=length(path))
     return class
 end
 
-function hits_wall(o::Orbit, wall::Polygon)
-    not_in_poly = [~in_polygon(p, wall) for p in zip(o.path.r,o.path.z)]
-    return any(not_in_poly)
+function hits_wall(path::OrbitPath, wall::Limiter)
+    not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
+    return any(not_in_vessel)
+end
+
+function hits_wall(o::Orbit, wall::Limiter)
+    hits_wall(o.path, wall)
 end
