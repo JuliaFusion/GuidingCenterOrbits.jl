@@ -230,11 +230,13 @@ function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
 end
 
 function Base.show(io::IO, orbit::Orbit)
-    class_str = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
-                     :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
-                     :degenerate=>"Degenerate ")
+    classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
+                   :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
+                   :degenerate=>"Degenerate ",:meta=>"Meta ")
+    class_str = orbit.class in keys(classes) ? classes[orbit.class] : "Unknown "
+
     println(io, typeof(orbit.coordinate))
-    println(io, class_str[orbit.class],"Orbit Type:")
+    println(io, class_str*"Orbit Type:")
     @printf(io, " τₚ = %.3f μs\n", orbit.tau_p*1e6)
     @printf(io, " τₜ = %.3f μs\n", orbit.tau_t*1e6)
 end
