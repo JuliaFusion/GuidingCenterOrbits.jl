@@ -3,12 +3,13 @@ immutable OrbitPath{T}
     z::Vector{T}
     phi::Vector{T}
     pitch::Vector{T}
+    energy::Vector{T}
     dt::Vector{T}
     dl::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64)
-    OrbitPath(T[],T[],T[],T[],T[],T[])
+    OrbitPath(T[],T[],T[],T[],T[],T[],T[])
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -172,7 +173,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     rmax, ind = findmax(r)
     pitch_rmax = pitch[ind]
     energy_rmax = energy[ind]
-    path = OrbitPath(r,z,phi,pitch,dt,dl)
+    path = OrbitPath(r,z,phi,pitch,energy,dt,dl)
 
     c = EPRCoordinate(energy_rmax, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
 
@@ -215,6 +216,7 @@ function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
     z = zeros(T,ngrps)
     phi = zeros(T,ngrps)
     pitch = zeros(T,ngrps)
+    energy = zeros(T,ngrps)
     dt = zeros(T,ngrps)
     dl = zeros(T,ngrps)
     for (i, inds) in enumerate(grps)
@@ -223,10 +225,11 @@ function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
         z[i] = p.z[fi]
         phi[i] = p.phi[fi]
         pitch[i] = p.pitch[fi]
+        energy[i] = p.energy[fi]
         dt[i] = sum(p.dt[inds])
         dl[i] = sum(p.dl[inds])
     end
-    return OrbitPath(r,z,phi,pitch,dt,dl)
+    return OrbitPath(r,z,phi,pitch,energy,dt,dl)
 end
 
 function Base.show(io::IO, orbit::Orbit)
