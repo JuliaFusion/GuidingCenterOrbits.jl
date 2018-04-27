@@ -233,7 +233,7 @@ function Base.show(io::IO, orbit::Orbit)
     classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
                    :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
                    :degenerate=>"Degenerate ",:meta=>"Meta ")
-    class_str = orbit.class in keys(classes) ? classes[orbit.class] : "Unknown "
+    class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
     println(io, typeof(orbit.coordinate))
     println(io, class_str*"Orbit Type:")
