@@ -9,6 +9,10 @@ immutable EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     q::Int
 end
 
+function EPRCoordinate()
+    return EPRCoordinate(0.0, 0.0, 0.0, 0.0, 0.0, 0)
+end
+
 function EPRCoordinate(energy, pitch, r, z; amu=H2_amu, q = 1)
     return EPRCoordinate(energy, pitch, r, z, amu, q)
 end
@@ -36,6 +40,10 @@ immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     p_phi::T
     amu::T
     q::Int
+end
+
+function HamiltonianCoordinate()
+    return HamiltonianCoordinate(0.0, 0.0, 0.0, 0.0, 0)
 end
 
 function HamiltonianCoordinate(energy, mu, p_phi; amu=H2_amu, q=1)
