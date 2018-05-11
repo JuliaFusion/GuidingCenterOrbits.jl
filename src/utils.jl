@@ -73,13 +73,13 @@ end
 function classify(path::OrbitPath, pitch, axis; n=length(path))
 
     pp = take(zip(path.r,path.z),n)
-    op = Polygon()
+    op = Limiter()
     for p in pp
         push!(op.vertices,p)
     end
     push!(op.vertices,first(pp))
 
-    if in_polygon(axis, op)
+    if in_vessel(op, axis)
         if all(sign.(pitch) .== sign(pitch[1]))
             if sign(pitch[1]) > 0.0
                 class = Symbol("co_passing")

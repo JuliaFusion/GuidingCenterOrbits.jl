@@ -128,7 +128,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     end
 
     if !in_boundary(r0)
-        error("Starting point outside boundary")
+        error("Starting point outside boundary: ", r0)
     end
 
     f = make_gc_ode(M, hc)
