@@ -84,18 +84,16 @@ function normalized_hamiltonian(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_
     g = M.g[psi]
 
     PE = M.phi[psi]*1e-3
-    mu = abs(M.B0)*(1-p^2)/babs
-    Pphi = M.sigma*(-M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi)/(e0*M.psi[end])
+    mu = abs(M.B0)*KE*(1-p^2)/babs/(KE + PE)
+    Pphi = M.sigma*(-M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi)/(e0*M.flux)
 
     return KE + PE, Pphi, mu
 end
 
 function normalized_hamiltonian(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate)
     E = hc.energy
-    PE = M.phi[psi]*1e-3
-    KE = E - PE
-    mu = (abs(M.B0)/(KE*e0*1e3))*hc.mu
-    Pphi = (M.sigma/(e0*M.psi[end]))*hc.p_phi
+    mu = (abs(M.B0)/(E*e0*1e3))*hc.mu
+    Pphi = (M.sigma/(e0*M.flux))*hc.p_phi
 
     return E, Pphi, mu
 end
