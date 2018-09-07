@@ -2,8 +2,11 @@ __precompile__()
 
 module GuidingCenterOrbits
 
+#import standard libraries
+using Printf
+using LinearAlgebra
+
 using Equilibrium
-using Interpolations
 using Sundials
 using Optim
 using Base.Iterators

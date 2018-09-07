@@ -1,6 +1,6 @@
 abstract type AbstractOrbitCoordinate{T} end
 
-immutable EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
+struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T # Kinetic Energy
     pitch::T
     r::T
@@ -31,10 +31,10 @@ function Base.show(io::IO, c::EPRCoordinate)
     println(io,typeof(c))
     @printf(io," E = %.3f keV\n",c.energy)
     @printf(io," pitch = %.3f\n",c.pitch)
-    @printf(io," Rmax = %.3f m\n",c.r)
+    @printf(io," Rmax = %.3f m",c.r)
 end
 
-immutable HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
+struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T #Kinetic + Potential Energy
     mu::T
     p_phi::T
@@ -104,5 +104,5 @@ function Base.show(io::IO, c::HamiltonianCoordinate)
     println(io,typeof(c))
     @printf(io," E = %.3f keV\n",c.energy)
     @printf(io," μ₀ = %.3e\n",c.mu)
-    @printf(io," Pᵩ = %.3e\n",c.p_phi)
+    @printf(io," Pᵩ = %.3e",c.p_phi)
 end

@@ -1,4 +1,4 @@
-immutable OrbitPath{T}
+struct OrbitPath{T}
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
@@ -14,7 +14,7 @@ end
 
 Base.length(op::OrbitPath) = length(op.r)
 
-immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
+struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
     tau_p::T
@@ -22,15 +22,15 @@ immutable Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     path::OrbitPath{T}
 end
 
-function Orbit{T}(c::AbstractOrbitCoordinate{T},class=:incomplete)
+function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where {T}
     return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
 end
 
-function Orbit{T}(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T})
+function Orbit(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T}) where {T}
     return Orbit(c, :incomplete, zero(T), zero(T), op)
 end
 
-function make_gc_ode{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T)
+function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
     function vgc(t, y, ydot)
         ri = [y[1],y[3]]
@@ -132,7 +132,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     end
 
     f = make_gc_ode(M, hc)
-    t = 1e-6*collect(linspace(0.0,tmax,nstep))
+    t = 1e-6*collect(range(0.0,stop=tmax,length=nstep))
 
     res = Sundials.cvode(f, r0, t, reltol=1e-8,abstol=1e-12, callback = cb)
 
@@ -205,7 +205,7 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tma
     return o
 end
 
-function down_sample{T}(p::OrbitPath{T}; mean_dl=2.5, nmin=30)
+function down_sample(p::OrbitPath{T}; mean_dl=2.5, nmin=30) where {T}
     L = sum(p.dl)*100 # cm
     npart = length(p)
     npart == 0 && error("Orbit path has zero length")
@@ -238,8 +238,7 @@ function Base.show(io::IO, orbit::Orbit)
                    :degenerate=>"Degenerate ",:meta=>"Meta ")
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
-    println(io, typeof(orbit.coordinate))
     println(io, class_str*"Orbit Type:")
     @printf(io, " τₚ = %.3f μs\n", orbit.tau_p*1e6)
-    @printf(io, " τₜ = %.3f μs\n", orbit.tau_t*1e6)
+    @printf(io, " τₜ = %.3f μs", orbit.tau_t*1e6)
 end

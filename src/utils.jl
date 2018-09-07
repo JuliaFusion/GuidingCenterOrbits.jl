@@ -1,4 +1,4 @@
-function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
+function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Real}
     psi = M.psi_rz[r,z]
     g = M.g[psi]
     babs = M.b[r,z]
@@ -13,7 +13,7 @@ function get_pitch{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate
     return clamp(pitch,-1.0,1.0)
 end
 
-function get_pitch{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S})
+function get_pitch(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {T<:AbstractOrbitCoordinate, S<:Real}
     n = length(r)
     pitch = zeros(S,n)
     @inbounds for i=1:n
@@ -22,11 +22,11 @@ function get_pitch{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::
     return pitch
 end
 
-function get_pitch{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
+function get_pitch(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}
     return get_pitch(M, c, path.r, path.z)
 end
 
-function get_pitch{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibrium, c::T, r::S, z::S)
+function get_pitch(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Real}
     hc = HamiltonianCoordinate(M, c)
     return get_pitch(M, hc, r, z)
 end
@@ -41,12 +41,12 @@ function get_pitch(M::AxisymmetricEquilibrium, o::Orbit)
     return pitch
 end
 
-function get_kinetic_energy{T<:Real}(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
+function get_kinetic_energy(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Real}
     psi = M.psi_rz[r,z]
     return c.energy - 1e-3*M.phi[psi]
 end
 
-function get_kinetic_energy{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S})
+function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {S, T<:AbstractOrbitCoordinate}
     n = length(r)
     energy = zeros(S,n)
     @inbounds for i=1:n
@@ -55,11 +55,11 @@ function get_kinetic_energy{S,T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilib
     return energy
 end
 
-function get_kinetic_energy{T<:AbstractOrbitCoordinate}(M::AxisymmetricEquilibrium, c::T, path::OrbitPath)
+function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}
     return get_kinetic_energy(M, c, path.r, path.z)
 end
 
-function get_kinetic_energy{T<:AbstractOrbitCoordinate,S<:Real}(M::AxisymmetricEquilibrium, c::T, r::S, z::S)
+function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Real}
     hc = HamiltonianCoordinate(M, c)
     return get_kinetic_energy(M, hc, r, z)
 end
