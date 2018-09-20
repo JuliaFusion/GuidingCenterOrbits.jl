@@ -10,6 +10,7 @@ using Equilibrium
 using Sundials
 using Optim
 using Base.Iterators
+using Interpolations
 #using Plots
 
 const mass_u = 1.6605402e-27
