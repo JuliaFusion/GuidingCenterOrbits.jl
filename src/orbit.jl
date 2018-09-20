@@ -36,15 +36,15 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where {T<:AbstractOrbitCo
         ri = [y[1],y[3]]
         r = y[1]
         z = y[3]
-        psi = M.psi_rz[r,z]
-        g = M.g[psi]
+        psi = M.psi_rz(r,z)
+        g = M.g(psi)
 
         B = Bfield(M,r,z)
         E = Efield(M,r,z)
         #J = Jfield(M,r,z)
 
-        babs = M.b[r,z]
-        gradB = gradient(M.b,r,z)
+        babs = M.b(r,z)
+        gradB = Interpolations.gradient(M.b,r,z)
 
         Wperp = oc.mu*babs
         vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.amu*mass_u*g)

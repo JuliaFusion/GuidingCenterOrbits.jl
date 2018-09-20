@@ -1,8 +1,8 @@
 function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Real}
-    psi = M.psi_rz[r,z]
-    g = M.g[psi]
-    babs = M.b[r,z]
-    phi = M.phi[psi]
+    psi = M.psi_rz(r,z)
+    g = M.g(psi)
+    babs = M.b(r,z)
+    phi = M.phi(psi)
     KE = c.energy - 1e-3*phi
     f = -babs/(sqrt(2e3*e0*KE*mass_u*c.amu)*g*M.sigma)
     pitch = f*(c.p_phi - c.q*e0*psi)
@@ -42,8 +42,8 @@ function get_pitch(M::AxisymmetricEquilibrium, o::Orbit)
 end
 
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Real}
-    psi = M.psi_rz[r,z]
-    return c.energy - 1e-3*M.phi[psi]
+    psi = M.psi_rz(r,z)
+    return c.energy - 1e-3*M.phi(psi)
 end
 
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {S, T<:AbstractOrbitCoordinate}
