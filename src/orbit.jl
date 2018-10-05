@@ -39,8 +39,9 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where {T<:AbstractOrbitCo
         psi = M.psi_rz(r,z)
         g = M.g(psi)
 
-        B = Bfield(M,r,z)
-        E = Efield(M,r,z)
+        F = fields(M,r,z)
+        B = F.B
+        E = F.E
         #J = Jfield(M,r,z)
 
         babs = M.b(r,z)
