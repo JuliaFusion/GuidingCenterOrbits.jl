@@ -46,6 +46,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where {T<:AbstractOrbitCo
 
         babs = M.b(r,z)
         gradB = Interpolations.gradient(M.b,r,z)
+        gradB = SVector{3}(gradB[1],0.0,gradB[2])
 
         Wperp = oc.mu*babs
         vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.amu*mass_u*g)
@@ -55,16 +56,16 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where {T<:AbstractOrbitCo
         v_exb = cross(E, B)/babs^2
 
         # GradB Drift
-        b1 = cross(B,[gradB[1],0.0,gradB[2]])/(babs^3)
+        b1 = cross(B,gradB)/(babs^3)
         v_grad = Wperp*b1/(oc.q*e0)
 
         # Curvature Drift
         #bb = (dot([gradB[1],0.0,gradB[2]],B) - cross(B,mu0*J))/(babs^2)
         #v_curv = 2*Wpara*cross(B,bb)/(babs^2)/(oc.q*e0)
-        v_curv = 2*Wpara*cross(B,[gradB[1],0.0,gradB[2]])/(babs^3)/(oc.q*e0)
+        v_curv = 2*Wpara*b1/(oc.q*e0)
 
         # Guiding Center Velocity
-        v_gc = vpara*B/babs + v_exb + v_grad + v_curv
+        v_gc = vpara*B/babs .+ v_exb .+ v_grad .+ v_curv
 
         ydot[1] = v_gc[1]
         ydot[2] = v_gc[2]/ri[1]
