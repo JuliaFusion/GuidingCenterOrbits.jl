@@ -82,18 +82,18 @@ function classify(path::OrbitPath, pitch, axis; n=length(path))
     if in_vessel(op, axis)
         if all(sign.(pitch) .== sign(pitch[1]))
             if sign(pitch[1]) > 0.0
-                class = Symbol("co_passing")
+                class = :co_passing
             else
-                class = Symbol("ctr_passing")
+                class = :ctr_passing
             end
         else
-            class = Symbol("potato")
+            class = :potato
         end
     else
         if all(sign.(pitch) .== sign(pitch[1]))
-            class = Symbol("stagnation")
+            class = :stagnation
         else
-            class = Symbol("trapped")
+            class = :trapped
         end
     end
 
