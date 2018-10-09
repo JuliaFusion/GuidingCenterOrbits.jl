@@ -26,8 +26,8 @@ function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where {T}
     return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
 end
 
-function Orbit(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T}) where {T}
-    return Orbit(c, :incomplete, zero(T), zero(T), op)
+function Orbit(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T}; class=:incomplete) where {T}
+    return Orbit(c, class, zero(T), zero(T), op)
 end
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T) where {T<:AbstractOrbitCoordinate}
@@ -105,7 +105,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
             r = r2 - r0
             initial_dir[1] = abs(r[1]) > abs(r[3]) ? 1 : 3
             initial_dir_sgn[1] = sign(r[initial_dir[1]])
-            r1[:] = convert(Vector, r2)
+            r1 .= convert(Vector, r2)
             return false
         end
 
@@ -120,7 +120,7 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
                 return true
             end
         end
-        r1[:] = convert(Vector, r2)
+        r1 .= convert(Vector, r2)
         return false
     end
 
@@ -179,8 +179,12 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
 
     c = EPRCoordinate(energy_rmax, pitch_rmax, rmax, z[ind], hc.amu, hc.q)
 
-    if !poloidal_complete[1] || hits_boundary[1]
-        return Orbit(c, path)
+    if hits_boundary[1]
+        return Orbit(c, path, class=:lost)
+    end
+
+    if !poloidal_complete[1]
+        return Orbit(c, path, class=:incomplete)
     end
 
     class = classify(path, pitch, M.axis, n=nlast)
@@ -198,7 +202,7 @@ end
 
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, store_path=true, one_transit=true)
     o = get_orbit(M, c.energy, c.pitch, c.r, c.z, c.amu, c.q, nstep, tmax, one_transit)
-    if o.class != :incomplete
+    if o.class != :incomplete || o.class != :lost
         maximum(o.path.r) > c.r && return Orbit(c,:degenerate)
     end
     if !store_path
@@ -237,7 +241,7 @@ end
 function Base.show(io::IO, orbit::Orbit)
     classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
                    :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
-                   :degenerate=>"Degenerate ",:meta=>"Meta ")
+                   :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ")
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
     println(io, class_str*"Orbit Type:")
