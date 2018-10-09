@@ -25,7 +25,10 @@ include("utils.jl")
 
 export EPRCoordinate, HamiltonianCoordinate
 export normalized_hamiltonian
-export get_pitch, hits_wall, get_kinetic_energy
+export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 export Orbit, OrbitPath, get_orbit, down_sample, plot_orbit
+
+include("fullorbit.jl")
+export FullOrbitPath, get_full_orbit
 
 end
