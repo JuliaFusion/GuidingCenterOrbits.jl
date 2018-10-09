@@ -100,6 +100,24 @@ function classify(path::OrbitPath, pitch, axis; n=length(path))
     return class
 end
 
+function hits_wall_path(path::OrbitPath, wall::Limiter)
+
+    not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
+    ind = findfirst(not_in_vessel)
+    if ind != nothing
+        return false, path
+    else
+        ind = ind-1
+        return true, OrbitPath(path.r[1:ind], path.z[1:ind] ,path.phi[1:ind],
+                               path.pitch[1:ind], path.energy[1:ind],
+                               path.dt[1:ind], path.dl[1:ind])
+    end
+end
+
+function hits_wall_path(o::Orbit, wall::Limiter)
+    hits_wall_path(o.path,wall)
+end
+
 function hits_wall(path::OrbitPath, wall::Limiter)
     not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
     return any(not_in_vessel)
