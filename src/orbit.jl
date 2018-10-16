@@ -19,21 +19,17 @@ struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     class::Symbol
     tau_p::T
     tau_t::T
-    path::OrbitPath{T}
 end
 
 function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where {T}
-    return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
-end
-
-function Orbit(c::AbstractOrbitCoordinate{T}, op::OrbitPath{T}; class=:incomplete) where {T}
-    return Orbit(c, class, zero(T), zero(T), op)
+    return Orbit(c, class, zero(T), zero(T))
 end
 
 mutable struct OrbitStatus
     errcode::Int
     nr::Int
     nz::Int
+    naxis::Int
     rm::Float64
     zm::Float64
     pm::Float64
@@ -45,11 +41,11 @@ mutable struct OrbitStatus
     class::Symbol
 end
 
-OrbitStatus() = OrbitStatus(1,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
+OrbitStatus() = OrbitStatus(1,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
 
-function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitState) where {T<:AbstractOrbitCoordinate}
+function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
-    ode = function f(y,p,t)
+    ode = function f(y,p::Bool,t)
         os
         r = y[1]
         z = y[3]
@@ -65,8 +61,8 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitState) where {T<
         gradB = Interpolations.gradient(M.b,r,z)
         gradB = SVector{3}(gradB[1],0.0,gradB[2])
         Wperp = oc.mu*babs
-        vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.amu*mass_u*(g))
-        Wpara = 0.5*oc.amu*mass_u*vpara^2
+        vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.m*g)
+        Wpara = 0.5*oc.m*vpara^2
 
         # ExB Drift
         v_exb = cross(E, B)/babs^2
@@ -85,16 +81,16 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitState) where {T<
     return ode
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, nstep::Int, tmax, one_transit, store_path)
+function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, nstep::Int, tmax, one_transit, store_path)
 
-    r0 = @SVector [ri,0.0,zi]
-    if !((M.r[1] < ri < M.r[end]) && (M.z[1] < zi < M.z[end]))
+    r0 = @SVector [gcpc.r,0.0,gcpc.z]
+    if !((M.r[1] < gcpc.r < M.r[end]) && (M.z[1] < gcpc.z < M.z[end]))
         error("Starting point outside boundary: ", r0)
     end
 
-    hc = HamiltonianCoordinate(M, E, pitch_i, ri, zi, amu=amu, q=q)
+    hc = HamiltonianCoordinate(M, gcpc)
 
-    os = OrbitState()
+    os = OrbitStatus()
     gc_ode = make_gc_ode(M,hc,os)
 
     tspan = (0,tmax*1e-6)
@@ -118,17 +114,17 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     end
 
     n = length(sol)-1
-    r = getindex.(sol.u,1:n,1)
-    phi = getindex.(sol.u,1:n,2)
-    z = getindex.(sol.u,1:n,3)
-    dt = [sol.t[i+1] - sol.t[i] for i=1:(n+1)]
+    r = getindex.(sol.u[1:n],1)
+    phi = getindex.(sol.u[1:n],2)
+    z = getindex.(sol.u[1:n],3)
+    dt = [sol.t[i+1] - sol.t[i] for i=1:n]
 
     # P_rz
 #    prz = zeros(n)
     dl = zeros(n)
     @inbounds for i=1:n
-        v_gc = gc_ode([r[i],phi[i],z[i]],0,0.0)
-        v = norm(ydot[1:2:3])
+        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)
+        v = norm(v_gc[1:2:3])
 #        prz[i] = 1/(T_p*v)
         dl[i] = v*dt[i]
     end
@@ -141,13 +137,14 @@ function get_orbit(M::AxisymmetricEquilibrium, E, pitch_i, ri, zi, amu, q::Int, 
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, E, p, r, z; amu=H2_amu, q=1, nstep=3000, tmax=500.0, one_transit=true, store_path=true)
-    path, os = get_orbit(M, E, p, r, z, amu, q, nstep, tmax, one_transit,store_path)
+function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle; nstep=3000, tmax=500.0, one_transit=true, store_path=true)
+    path, os = get_orbit(M, gcpc, nstep, tmax, one_transit,store_path)
     return path, os
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, one_transit=true, store_path=true)
-    path, os = get_orbit(M, c.energy, c.pitch, c.r, c.z, c.amu, c.q, nstep, tmax, one_transit, store_path)
+    gcpc = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
+    path, os = get_orbit(M, gcpc, nstep, tmax, one_transit, store_path)
     if os.class != :incomplete || os.class != :lost
         os.rm > c.r && (os.class = :degenerate)
     end

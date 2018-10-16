@@ -4,7 +4,7 @@ function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z
     babs = M.b(r,z)
     phi = M.phi(psi)
     KE = c.energy - 1e-3*phi
-    f = -babs/(sqrt(2e3*e0*KE*mass_u*c.amu)*g*M.sigma)
+    f = -babs/(sqrt(2e3*e0*KE*c.m)*g*M.sigma)
     pitch = f*(c.p_phi - c.q*e0*psi)
     #pitchabs = sqrt(max(1.0-(c.mu*babs/(1e3*e0*KE)), 0.0))
     #if !isapprox(abs(pitch), pitchabs, atol=1.e-1)
@@ -114,15 +114,7 @@ function hits_wall_path(path::OrbitPath, wall::Limiter)
     end
 end
 
-function hits_wall_path(o::Orbit, wall::Limiter)
-    hits_wall_path(o.path,wall)
-end
-
 function hits_wall(path::OrbitPath, wall::Limiter)
     not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
     return any(not_in_vessel)
-end
-
-function hits_wall(o::Orbit, wall::Limiter)
-    hits_wall(o.path, wall)
 end

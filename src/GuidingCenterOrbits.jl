@@ -7,7 +7,7 @@ using Printf
 using LinearAlgebra
 
 using Equilibrium
-using Sundials
+using DifferentialEquations
 using Optim
 using Base.Iterators
 using Interpolations
@@ -20,15 +20,19 @@ const mu0 = 4*pi*1e-7
 const H2_amu = 2.0141017778
 
 include("coordinates.jl")
-include("orbit.jl")
-include("utils.jl")
+export EPRCoordinate, HamiltonianCoordinate, normalized_hamiltonian
+export Particle, GCParticle, EPRParticle
 
-export EPRCoordinate, HamiltonianCoordinate
-export normalized_hamiltonian
-export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
+include("callbacks.jl")
+export standard_callback
+
+include("orbit.jl")
 export Orbit, OrbitPath, get_orbit, down_sample, plot_orbit
 
 include("fullorbit.jl")
-export FullOrbitPath, get_full_orbit
+export FullOrbitPath
+
+include("utils.jl")
+export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 
 end

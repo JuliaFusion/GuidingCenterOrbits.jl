@@ -5,7 +5,7 @@ struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     pitch::T
     r::T
     z::T
-    amu::T
+    m::T
     q::Int
 end
 
@@ -14,7 +14,7 @@ function EPRCoordinate()
 end
 
 function EPRCoordinate(energy, pitch, r, z; amu=H2_amu, q = 1)
-    return EPRCoordinate(energy, pitch, r, z, amu, q)
+    return EPRCoordinate(energy, pitch, r, z, amu*mass_u, q)
 end
 
 function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu, q=1, dz=0.2)
@@ -24,7 +24,7 @@ function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu
     res = optimize(x->M.psi_rz(R,x), zmin, zmax)
     Z = Optim.minimizer(res)
     (Z == zmax || Z == zmin) && error(@sprintf("Unable to find starting Z value with dz = %.2f. Increase dz",dz))
-    return EPRCoordinate(energy, pitch, R, Z, amu, q)
+    return EPRCoordinate(energy, pitch, R, Z, amu*mass_u, q)
 end
 
 function Base.show(io::IO, c::EPRCoordinate)
@@ -38,7 +38,7 @@ struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T #Kinetic + Potential Energy
     mu::T
     p_phi::T
-    amu::T
+    m::T
     q::Int
 end
 
@@ -47,19 +47,22 @@ function HamiltonianCoordinate()
 end
 
 function HamiltonianCoordinate(energy, mu, p_phi; amu=H2_amu, q=1)
-    return HamiltonianCoordinate(energy, mu, p_phi, amu, q)
+    return HamiltonianCoordinate(energy, mu, p_phi, amu*mass_u, q)
+end
+
+function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, pitch, r, z, m, q)
+    psi = M.psi_rz(r,z)
+    babs = M.b(r,z)
+    g = M.g(psi)
+    pot = M.phi(psi)
+    PE = 1e-3*pot
+    mu = e0*1e3*KE*(1-pitch^2)/babs
+    Pphi = -M.sigma*sqrt(2e3*e0*KE*m)*g*pitch/babs + q*e0*psi
+    return HamiltonianCoordinate(KE+PE,mu,Pphi,m,q)
 end
 
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::EPRCoordinate)
-    psi = M.psi_rz(c.r,c.z)
-    babs = M.b(c.r,c.z)
-    g = M.g(psi)
-    pot = M.phi(psi)
-    KE = c.energy
-    PE = 1e-3*pot
-    mu = e0*1e3*KE*(1-c.pitch^2)/babs
-    Pphi = -M.sigma*sqrt(2e3*e0*KE*mass_u*c.amu)*g*c.pitch/babs + c.q*e0*psi
-    return HamiltonianCoordinate(KE+PE,mu,Pphi,c.amu,c.q)
+    HamiltonianCoordinate(M,c.energy,c.pitch,c.r,c.z,c.m,c.q)
 end
 
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate)
@@ -75,7 +78,7 @@ function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_a
     mu = e0*1e3*KE*(1-p^2)/babs
     Pphi = -M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi
 
-    return HamiltonianCoordinate(KE + PE, mu, Pphi, amu, q)
+    return HamiltonianCoordinate(KE + PE, mu, Pphi, amu*mass_u, q)
 end
 
 function normalized_hamiltonian(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
@@ -105,4 +108,56 @@ function Base.show(io::IO, c::HamiltonianCoordinate)
     @printf(io," E = %.3f keV\n",c.energy)
     @printf(io," μ₀ = %.3e\n",c.mu)
     @printf(io," Pᵩ = %.3e",c.p_phi)
+end
+
+abstract type AbstractParticle{T} end
+
+struct Particle{T} <: AbstractParticle{T}
+    r::T
+    phi::T
+    z::T
+    vr::T
+    vt::T
+    vz::T
+    m::T
+    q::Int
+end
+
+function Particle(r,phi,z,vr,vphi,vz; amu=H2_amu, q=1)
+    Particle(r, phi, z, vr, vphi, vz, mass_u*amu, q)
+end
+
+struct GCParticle{T} <: AbstractParticle{T}
+    energy::T
+    pitch::T
+    r::T
+    z::T
+    m::T
+    q::Int
+end
+
+function GCParticle(energy,pitch,r,z; amu=H2_amu, q=1)
+    GCParticle(energy, pitch, r, z, mass_u*amu, q)
+end
+
+function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::GCParticle)
+    HamiltonianCoordinate(M,c.energy,c.pitch,c.r,c.z,c.m,c.q)
+end
+
+struct EPRParticle{T} <: AbstractParticle{T}
+    energy_c::T
+    pitch_c::T
+    r_c::T
+    z_c::T
+    t::T
+    m::T
+    q::Int
+end
+
+function EPRParticle(energy, pitch, r, z, t; amu=H2_amu, q=1)
+    EPRParticle(energy, pitch, r, z, t, mass_u*amu, q)
+end
+
+function EPRParticle(oc::EPRCoordinate,t)
+    EPRParticle(oc.energy,oc.pitch,oc.r,oc.z,t,oc.m,oc.q)
 end

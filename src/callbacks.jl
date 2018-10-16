@@ -23,7 +23,7 @@ function z_affect!(integ)
         os.nz += 1
     end
 end
-z_cb = ContinuousCallback(z_condition,z_affect!,abstol=1e-8.save_positions=(false,false),rootfind=false)
+z_cb = ContinuousCallback(z_condition,z_affect!,abstol=1e-8,save_positions=(false,false),rootfind=false)
 
 function poloidal_condition(u,t,integ)
     u[3] - integ.sol.u[1][3]
@@ -39,23 +39,22 @@ function poloidal_affect!(integ)
         M = integ.f.f.M
         oc = integ.f.f.oc
         os.pm = get_pitch(M,oc,os.rm,os.zm)
-        if os.naxis == 0
-            os.class = :stagnation
-            if os.nr >= 4
-                os.class = :trapped
-            end
-        elseif os.naxis == 2
-            if os.nr >= 4
-                os.class = :potato
-            else
-                if os.pm > 0
-                    os.class = :co_passing
+        if os.pm < 0.0
+            os.class = :ctr_passing
+        else
+            if os.naxis == 4 || os.naxis == 0
+                if os.nr >= 4
+                    os.class = :trapped
                 else
-                    os.class = :ctr_passing
+                    os.class = :stagnation
+                end
+            else
+                if os.nr >= 4
+                    os.class = :potato
+                else
+                    os.class = :co_passing
                 end
             end
-        elseif os.naxis == 4
-            os.class = :trapped
         end
         integ.p && terminate!(integ)
     end
