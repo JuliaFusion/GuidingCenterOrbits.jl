@@ -12,7 +12,7 @@ function r_affect!(integ)
         end
     end
 end
-r_cb = ContinuousCallback(r_condition,r_affect!,abstol=1e-8,save_positions=(false,false))
+r_cb = ContinuousCallback(r_condition,r_affect!,abstol=1e-6,save_positions=(false,false))
 
 function z_condition(u,t,integ)
     integ.f(u,integ.p,t)[3]
@@ -23,9 +23,10 @@ function z_affect!(integ)
         os.nz += 1
     end
 end
-z_cb = ContinuousCallback(z_condition,z_affect!,abstol=1e-8,save_positions=(false,false),rootfind=false)
+z_cb = ContinuousCallback(z_condition,z_affect!,abstol=1e-6,save_positions=(false,false))
 
 function poloidal_condition(u,t,integ)
+    #i = integ.f.f.os.initial_dir
     u[3] - integ.sol.u[1][3]
 end
 function poloidal_affect!(integ)
@@ -59,7 +60,7 @@ function poloidal_affect!(integ)
         integ.p && terminate!(integ)
     end
 end
-pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,save_positions=(false,false))
+pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,save_positions=(false,false),abstol=1e-6)
 
 function maxis_condition(u,t,integ)
     M = integ.f.f.M
@@ -71,7 +72,7 @@ function maxis_affect!(integ)
         os.naxis += 1
     end
 end
-maxis_cb = ContinuousCallback(maxis_condition,maxis_affect!,save_positions=(false,false),rootfind=false)
+maxis_cb = ContinuousCallback(maxis_condition,maxis_affect!,save_positions=(false,false),abstol=1e-6)
 
 function out_of_bounds_condition(u,t,integ)
     M = integ.f.f.M

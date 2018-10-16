@@ -36,12 +36,13 @@ mutable struct OrbitStatus
     tm::Float64
     tau_p::Float64
     tau_t::Float64
+    initial_dir::Int
     poloidal_complete::Bool
     hits_boundary::Bool
     class::Symbol
 end
 
-OrbitStatus() = OrbitStatus(1,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
+OrbitStatus() = OrbitStatus(1,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,1,false,false,:incomplete)
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
@@ -92,6 +93,8 @@ function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, nstep::Int, tma
 
     os = OrbitStatus()
     gc_ode = make_gc_ode(M,hc,os)
+    v_gc = gc_ode(r0,false,0.0)
+    os.initial_dir = abs(v_gc[1]) > abs(v_gc[3]) ? 1 : 3
 
     tspan = (0,tmax*1e-6)
     dt = (tmax/nstep)*1e-6
@@ -105,6 +108,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, nstep::Int, tma
     end
     if sol.retcode != :Success
         warn("Unable to find Guiding Center Orbit")
+        os.class = :incomplete
         return OrbitPath(), os
     end
     os.errcode=0
