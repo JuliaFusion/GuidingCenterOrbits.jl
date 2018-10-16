@@ -82,7 +82,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
     return ode
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, nstep::Int, tmax, one_transit, store_path)
+function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, dt, tmax, one_transit, store_path)
 
     r0 = @SVector [gcpc.r,0.0,gcpc.z]
     if !((M.r[1] < gcpc.r < M.r[end]) && (M.z[1] < gcpc.z < M.z[end]))
@@ -97,15 +97,14 @@ function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, nstep::Int, tma
     os.initial_dir = abs(v_gc[1]) > abs(v_gc[3]) ? 1 : 3
 
     tspan = (0,tmax*1e-6)
-    dt = (tmax/nstep)*1e-6
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
-    sol = solve(ode_prob, Vern8(), reltol=1e-8, abstol=1e-12, verbose=false,
-                callback=standard_callback, saveat=dt, save_everystep=store_path)
-    if sol.retcode != :Success
-        sol = solve(ode_prob, ImplicitMidpoint(), dt=dt, reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=standard_callback, saveat=dt, save_everystep=store_path)
-    end
+#    sol = solve(ode_prob, Vern8(), reltol=1e-8, abstol=1e-12, verbose=false,
+#                callback=standard_callback, saveat=dt*1e-6, save_everystep=store_path)
+#    if sol.retcode != :Success
+        sol = solve(ode_prob, ImplicitMidpoint(), dt=dt*1e-6, reltol=1e-8, abstol=1e-12, verbose=false,
+                    callback=standard_callback, saveat=dt*1e-6, save_everystep=store_path)
+#    end
     if sol.retcode != :Success
         warn("Unable to find Guiding Center Orbit")
         os.class = :incomplete
@@ -141,14 +140,14 @@ function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle, nstep::Int, tma
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle; nstep=3000, tmax=500.0, one_transit=true, store_path=true)
-    path, os = get_orbit(M, gcpc, nstep, tmax, one_transit,store_path)
+function get_orbit(M::AxisymmetricEquilibrium, gcpc::GCParticle; dt=0.1, tmax=500.0, one_transit=true, store_path=true)
+    path, os = get_orbit(M, gcpc, dt, tmax, one_transit,store_path)
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; nstep=3000, tmax=500.0, one_transit=true, store_path=true)
+function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=500.0, one_transit=true, store_path=true)
     gcpc = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-    path, os = get_orbit(M, gcpc, nstep, tmax, one_transit, store_path)
+    path, os = get_orbit(M, gcpc, dt, tmax, one_transit, store_path)
     if os.class != :incomplete || os.class != :lost
         os.rm > c.r && (os.class = :degenerate)
     end

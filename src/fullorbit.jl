@@ -50,8 +50,9 @@ function borispush(M, m, v, u, dt)
         return v
 end
 
-function get_orbit(M, pc::Particle; dt= 1e-9, tmax = 100*1e-6)
+function get_orbit(M, pc::Particle; dt= 0.001, tmax = 100)
 
+    dt_sec = dt*1e-6
     tau_c = 2*pi*(pc.m)/(M.b(r,z)*e0)
 
     t = 0:dt:tmax
@@ -70,12 +71,12 @@ function get_orbit(M, pc::Particle; dt= 1e-9, tmax = 100*1e-6)
     x_arr[1] = u[1]
     y_arr[1] = u[2]
     z_arr[1] = u[3]
-    v = borispush(M,pc.m,v,u,-0.5*dt)
+    v = borispush(M,pc.m,v,u,-0.5*dt_sec)
     vx_arr[1] = v[1]
     vy_arr[1] = v[2]
     vz_arr[1] = v[3]
     for i=2:nstep
-        v = borispush(M,pc.m,v,u,dt)
+        v = borispush(M,pc.m,v,u,dt_sec)
         x_arr[i] = x_arr[i-1] + v[1]*dt
         y_arr[i] = y_arr[i-1] + v[2]*dt
         z_arr[i] = z_arr[i-1] + v[3]*dt
@@ -84,7 +85,7 @@ function get_orbit(M, pc::Particle; dt= 1e-9, tmax = 100*1e-6)
         vy_arr[i] = v[2]
         vz_arr[i] = v[3]
     end
-    v = borispush(M,pc.m,v,u,0.5*dt)
+    v = borispush(M,pc.m,v,u,0.5*dt_sec)
     vx_arr[end] = v[1]
     vy_arr[end] = v[2]
     vz_arr[end] = v[3]
@@ -98,11 +99,12 @@ function get_orbit(M, pc::Particle; dt= 1e-9, tmax = 100*1e-6)
     vphi_arr = [-0.5*(vx_arr[i]+vx_arr[i+1])*sp[i] .+ 0.5*(vy_arr[i] + vy_arr[i+1])*cp[i] for i=1:nstep]
     vz_arr = [0.5(vz_arr[i] + vz_arr[i+1]) for i=1:nstep]
 
-    return FullOrbitPath(dt, r_arr,phi_arr,z_arr,vr_arr,vphi_arr,vz_arr), FullOrbitStatus(0)
+    return FullOrbitPath(dt_sec, r_arr,phi_arr,z_arr,vr_arr,vphi_arr,vz_arr), FullOrbitStatus(0)
 end
 
-function hits_wall(M, pc::Particle, wall; dt=1e-9, tmax=100e-6)
+function hits_wall(M, pc::Particle, wall; dt=1e-3, tmax=100)
 
+    dt_sec = dt*1e-6
     t = 0:dt:tmax
     nstep = length(t)
 
@@ -111,10 +113,10 @@ function hits_wall(M, pc::Particle, wall; dt=1e-9, tmax=100e-6)
     u = SVector{3}([pc.r*cp,pc.r*sp,z])
     v = SVector{3}([pc.vr*cp - pc.vphi*sp,pc.vr*sp + pc.vphi*cp,pc.vz])
     hit = false
-    v = borispush(M,pc.m,v,u,-0.5*dt)
+    v = borispush(M,pc.m,v,u,-0.5*dt_sec)
     T = 0.0
     for i=1:nstep
-        v = borispush(M,pc.m,v,u,dt)
+        v = borispush(M,pc.m,v,u,dt_sec)
         u = u .+ v*dt
         rr = sqrt(u[1]^2 + u[2]^2)
         zz = u[3]
@@ -122,7 +124,7 @@ function hits_wall(M, pc::Particle, wall; dt=1e-9, tmax=100e-6)
             hit = true
             break
         end
-        T += dt
+        T += dt_sec
     end
 
     return hit, T
