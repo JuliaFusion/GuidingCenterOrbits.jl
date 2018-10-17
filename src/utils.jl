@@ -70,7 +70,7 @@ function get_kinetic_energy(M::AxisymmetricEquilibrium, o::Orbit)
     return get_kinetic_energy(M, o.coordinate, o.path)
 end
 
-function classify(path::OrbitPath, pitch, axis; n=length(path))
+function classify(path::OrbitPath, axis; n=length(path))
 
     pp = take(zip(path.r,path.z),n)
     op = Limiter()
@@ -79,9 +79,10 @@ function classify(path::OrbitPath, pitch, axis; n=length(path))
     end
     push!(op.vertices,first(pp))
 
+    sign_p = sign.(path.pitch)
     if in_vessel(op, axis)
-        if all(sign.(pitch) .== sign(pitch[1]))
-            if sign(pitch[1]) > 0.0
+        if all(sign_p .== sign_p[1])
+            if sign_p[1] > 0.0
                 class = :co_passing
             else
                 class = :ctr_passing
@@ -90,7 +91,7 @@ function classify(path::OrbitPath, pitch, axis; n=length(path))
             class = :potato
         end
     else
-        if all(sign.(pitch) .== sign(pitch[1]))
+        if all(sign_p .== sign_p[1])
             class = :stagnation
         else
             class = :trapped
