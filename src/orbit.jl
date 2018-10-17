@@ -101,12 +101,12 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, one_tr
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
     try
-        sol = solve(ode_prob, Vern8(), reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=standard_callback, save_everystep=store_path)
-        if sol.retcode != :Success
+        #sol = solve(ode_prob, Vern8(), reltol=1e-8, abstol=1e-12, verbose=false,
+        #            callback=standard_callback, save_everystep=store_path)
+        #if sol.retcode != :Success
             sol = solve(ode_prob, ImplicitMidpoint(), dt=dt*1e-6, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=standard_callback, save_everystep=store_path)
-        end
+        #end
         if sol.retcode != :Success
             sol = solve(ode_prob, ImplicitMidpoint(), dt=dt*1e-7, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=standard_callback, save_everystep=store_path)
