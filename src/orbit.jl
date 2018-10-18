@@ -84,7 +84,8 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
     return ode
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, integrator, one_transit, store_path, maxiter)
+function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
+                   dt, tmax, integrator, one_transit::Bool, store_path::Bool, maxiter::Int)
 
     r0 = @SVector [gcp.r,0.0,gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
@@ -106,7 +107,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, integr
 
     try
         sol = solve(ode_prob, integrator, dt=(dt*1e-6)/os.tau_c, reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=standard_callback, save_everystep=store_path)
+                    callback=standard_callback, save_everystep=store_path,adaptive=false)
         dtt = (dt/os.tau_c)*1e-6
         for i=1:maxiter
             (sol.retcode == :Success && os.class != :incomplete) && break
