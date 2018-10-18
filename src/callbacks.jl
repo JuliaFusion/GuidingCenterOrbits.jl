@@ -10,7 +10,7 @@ function r_affect!(integ)
         if (integ.u[1] > os.rm)
             os.rm = integ.u[1]
             os.zm = integ.u[3]
-            os.tm = integ.t
+            os.tm = integ.t*os.tau_c
         end
     else
         integ.p && terminate!(integ)
@@ -55,7 +55,7 @@ function poloidal_affect!(integ)
                                  dp > 0.99999 && dprz > 0.99999)
     #if !os.poloidal_complete && ((lr != 0 && lz != 0 && iseven(lr) && iseven(lz)) || lz > 10 || lr > 10)
         os.poloidal_complete=true
-        os.tau_p = integ.t
+        os.tau_p = integ.t*os.tau_c
         os.tau_t = 2pi*os.tau_p/abs(integ.u[2] - integ.sol.u[1][2])
         M = integ.f.f.M
         oc = integ.f.f.oc

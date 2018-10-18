@@ -119,3 +119,7 @@ function hits_wall(path::OrbitPath, wall::Limiter)
     not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
     return any(not_in_vessel)
 end
+
+function ion_cyclotron_period(M,p::AbstractParticle)
+    return 2*pi*(p.m)/(M.b(p.r,p.z)*e0) #Ion Cyclotron Period
+end

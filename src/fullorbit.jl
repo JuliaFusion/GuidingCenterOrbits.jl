@@ -53,7 +53,7 @@ end
 function get_orbit(M, pc::Particle; dt= 0.001, tmax = 100)
 
     dt_sec = dt*1e-6
-    tau_c = 2*pi*(pc.m)/(M.b(r,z)*e0)
+    tau_c = ion_cyclotron_period(M,pc)
 
     t = 0:dt:tmax
     nstep = length(t)
