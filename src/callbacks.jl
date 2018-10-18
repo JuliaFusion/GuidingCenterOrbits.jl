@@ -1,5 +1,6 @@
 function r_condition(u,t,integ)
-    integ.f(u,integ.p,t)[1]
+    v = integ.f(u,integ.p,integ.t)
+    v[1]/sqrt(v[1]^2 +v[2]^2)
 end
 function r_affect!(integ)
     os = integ.f.f.os
@@ -21,7 +22,8 @@ function phi_condition(u,t,integ)
     #dz_cur = get_du(integ)[3]
     #dz_prev = integ.f(integ.uprev,integ.p,integ.tprev)[3]
     #sign(dz_cur) != sign(dz_prev)
-    integ.f(u,integ.p,integ.t)[2]
+    v = integ.f(u,integ.p,integ.t)
+    v[2]/norm(v)
 end
 function phi_affect!(integ)
     os = integ.f.f.os
@@ -37,15 +39,20 @@ phi_cb = ContinuousCallback(phi_condition,phi_affect!,rootfind=false)
 
 function poloidal_condition(u,t,integ)
     os = integ.f.f.os
-    u[3] - os.ri[3]
+    i = os.initial_dir
+    u[i] - os.ri[i]
 end
 function poloidal_affect!(integ)
     os = integ.f.f.os
     vi = os.vi
     vc = integ.f(integ.u,integ.p,integ.t)
     dp = dot(vi,vc)/(norm(vi)*norm(vc))
+    vi_rz = SVector(vi[1],vi[3])
+    vc_rz = SVector(vc[1],vc[3])
+    dprz = dot(vi_rz,vc_rz)/(norm(vi_rz)*norm(vc_rz))
     #println("poloidal callback ",integ.t*1e6," ",integ.u," ",lr," ",lz)
-    if !os.poloidal_complete && os.nr >= 2 && (os.naxis == 0 || os.naxis >= 2) && dp > 0.999
+    if !os.poloidal_complete && (os.nr >= 2 && (os.naxis == 0 || os.naxis >= 2) &&
+                                 dp > 0.99999 && dprz > 0.99999)
     #if !os.poloidal_complete && ((lr != 0 && lz != 0 && iseven(lr) && iseven(lz)) || lz > 10 || lr > 10)
         os.poloidal_complete=true
         os.tau_p = integ.t

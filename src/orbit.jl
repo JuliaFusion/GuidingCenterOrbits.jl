@@ -29,6 +29,7 @@ mutable struct OrbitStatus
     errcode::Int
     ri::SArray{Tuple{3},Float64,1,3}
     vi::SArray{Tuple{3},Float64,1,3}
+    initial_dir::Int
     nr::Int
     nphi::Int
     naxis::Int
@@ -43,7 +44,7 @@ mutable struct OrbitStatus
     class::Symbol
 end
 
-OrbitStatus() = OrbitStatus(1,SVector{3}(0.0,0.0,0.0),SVector{3}(0.0,0.0,0.0),0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
+OrbitStatus() = OrbitStatus(1,SVector{3}(0.0,0.0,0.0),SVector{3}(0.0,0.0,0.0),0,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
@@ -83,7 +84,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
     return ode
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, one_transit, store_path)
+function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, one_transit, store_path, maxiter)
 
     r0 = @SVector [gcp.r,0.0,gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
@@ -96,6 +97,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, one_tr
     os.ri = r0
     gc_ode = make_gc_ode(M,hc,os)
     os.vi = gc_ode(r0,false,0.0)
+    os.initial_dir = abs(os.vi[1]) > abs(os.vi[3]) ? 1 : 3
 
     tspan = (0,tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
@@ -103,18 +105,23 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, one_tr
     try
         #sol = solve(ode_prob, Vern8(), reltol=1e-8, abstol=1e-12, verbose=false,
         #            callback=standard_callback, save_everystep=store_path)
-        #if sol.retcode != :Success
-            sol = solve(ode_prob, ImplicitMidpoint(), dt=dt*1e-6, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=standard_callback, save_everystep=store_path)
-        #end
-        if sol.retcode != :Success
-            sol = solve(ode_prob, ImplicitMidpoint(), dt=dt*1e-7, reltol=1e-8, abstol=1e-12, verbose=false,
+        sol = solve(ode_prob, ImplicitMidpoint(), dt=dt*1e-6, reltol=1e-8, abstol=1e-12, verbose=false,
+                    callback=standard_callback, save_everystep=store_path)
+        dtt = dt*1e-6
+        for i=1:maxiter
+            (sol.retcode == :Success && os.class != :incomplete) && break
+            dtt = dtt/10
+            sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=standard_callback, save_everystep=store_path)
         end
     catch err
-        println(err)
-        @show gcp
-        return OrbitPath(), os
+        if !isa(err,InterruptException)
+            println(err)
+            @show gcp
+            return OrbitPath(), os
+        else
+            throw(err)
+        end
     end
 
     if sol.retcode != :Success
@@ -170,14 +177,14 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle, dt, tmax, one_tr
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=500.0, one_transit=true, store_path=true)
-    path, os = get_orbit(M, gcp, dt, tmax, one_transit,store_path)
+function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, one_transit=true, store_path=true,maxiter=3)
+    path, os = get_orbit(M, gcp, dt, tmax, one_transit,store_path,maxiter)
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=500.0, one_transit=true, store_path=true)
+function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=1000.0, one_transit=true, store_path=true,maxiter=3)
     gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-    path, os = get_orbit(M, gcp, dt, tmax, one_transit, store_path)
+    path, os = get_orbit(M, gcp, dt, tmax, one_transit, store_path,maxiter)
     if os.class != :incomplete || os.class != :lost
         os.rm > c.r && (os.class = :degenerate)
     end
