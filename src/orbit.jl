@@ -99,7 +99,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     os.tau_c = 1.0
     os.ri = r0
     gc_ode = make_gc_ode(M,hc,os)
-    os.vi = gc_ode(r0,false,0.0)*os.tau_c
+    os.vi = gc_ode(r0,false,0.0)
     os.initial_dir = abs(os.vi[1]) > abs(os.vi[3]) ? 1 : 3
 
     tspan = (0.0,(tmax*1e-6)/os.tau_c)
@@ -135,19 +135,20 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if !store_path
         return OrbitPath(), os
     end
-    sol = sol(range(0.0,stop=sol.t[end],length=floor(Int,sol.t[end]/(dt*1e-6))))
 
-    n = length(sol)
+    n = floor(Int,sol.t[end]/((dt*1e-6)/os.tau_c))
+    sol = sol(range(0.0,stop=sol.t[end],length=n))
+
     r = getindex.(sol.u,1)
     phi = getindex.(sol.u,2)
     z = getindex.(sol.u,3)
-    dt = [sol.t[max(i+1,n)] - sol.t[i] for i=1:n]
+    dt = [(sol.t[min(i+1,n)] - sol.t[i])*os.tau_c for i=1:n]
 
     # P_rz
 #    prz = zeros(n)
     dl = zeros(n)
     @inbounds for i=1:n
-        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)
+        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)/os.tau_c
         v = norm(v_gc[1:2:3])
 #        prz[i] = 1/(T_p*v)
         dl[i] = v*dt[i]
