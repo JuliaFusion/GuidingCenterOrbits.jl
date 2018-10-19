@@ -27,7 +27,6 @@ end
 
 mutable struct OrbitStatus
     errcode::Int
-    tau_c::Float64
     ri::SArray{Tuple{3},Float64,1,3}
     vi::SArray{Tuple{3},Float64,1,3}
     initial_dir::Int
@@ -45,11 +44,12 @@ mutable struct OrbitStatus
     class::Symbol
 end
 
-OrbitStatus() = OrbitStatus(1,0.0,SVector{3}(0.0,0.0,0.0),SVector{3}(0.0,0.0,0.0),0,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
+OrbitStatus() = OrbitStatus(1,SVector{3}(0.0,0.0,0.0),SVector{3}(0.0,0.0,0.0),0,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
     ode = function f(y,p::Bool,t)
+        os
         r = y[1]
         z = y[3]
 
@@ -78,7 +78,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
         v_curv = 2*Wpara*b1/(oc.q*e0)
 
         # Guiding Center Velocity
-        v_gc = (vpara*B/babs + v_exb + v_grad + v_curv)*os.tau_c
+        v_gc = (vpara*B/babs + v_exb + v_grad + v_curv)
         return SVector{3}(v_gc[1], v_gc[2]/r, v_gc[3])
     end
     return ode
@@ -95,24 +95,22 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     hc = HamiltonianCoordinate(M, gcp)
 
     os = OrbitStatus()
-    #os.tau_c = ion_cyclotron_period(M,gcp)
-    os.tau_c = 1.0
     os.ri = r0
     gc_ode = make_gc_ode(M,hc,os)
     os.vi = gc_ode(r0,false,0.0)
     os.initial_dir = abs(os.vi[1]) > abs(os.vi[3]) ? 1 : 3
 
-    tspan = (0.0,(tmax*1e-6)/os.tau_c)
+    tspan = (0.0,tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
     try
-        sol = solve(ode_prob, integrator, dt=(dt*1e-6)/os.tau_c, reltol=1e-8, abstol=1e-12, verbose=false,
+        sol = solve(ode_prob, integrator, dt=(dt*1e-6), reltol=1e-8, abstol=1e-12, verbose=false,
                     callback=standard_callback, save_everystep=store_path,adaptive=false)
-        dtt = (dt/os.tau_c)*1e-6
+        dtt = dt*1e-6
         for i=1:maxiter
             (sol.retcode == :Success && os.class != :incomplete) && break
             dtt = dtt/10
-            sol = solve(ode_prob, integrator, dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
+            sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=standard_callback, save_everystep=store_path,adaptive=false)
         end
     catch err
@@ -136,19 +134,19 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
         return OrbitPath(), os
     end
 
-    n = floor(Int,sol.t[end]/((dt*1e-6)/os.tau_c))
+    n = floor(Int,sol.t[end]/(dt*1e-6))
     sol = sol(range(0.0,stop=sol.t[end],length=n))
 
     r = getindex.(sol.u,1)
     phi = getindex.(sol.u,2)
     z = getindex.(sol.u,3)
-    dt = [(sol.t[min(i+1,n)] - sol.t[i])*os.tau_c for i=1:n]
+    dt = [(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
 
     # P_rz
 #    prz = zeros(n)
     dl = zeros(n)
     @inbounds for i=1:n
-        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)/os.tau_c
+        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)
         v = norm(v_gc[1:2:3])
 #        prz[i] = 1/(T_p*v)
         dl[i] = v*dt[i]
@@ -179,13 +177,13 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=ImplicitMidpoint(),
+function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
                    one_transit=true, store_path=true,maxiter=3)
     path, os = get_orbit(M, gcp, dt, tmax, integrator, one_transit,store_path,maxiter)
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=1000.0, integrator=ImplicitMidpoint(),
+function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=1000.0, integrator=Tsit5(),
                    one_transit=true, store_path=true,maxiter=3)
     gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
     path, os = get_orbit(M, gcp, dt, tmax, integrator, one_transit, store_path,maxiter)

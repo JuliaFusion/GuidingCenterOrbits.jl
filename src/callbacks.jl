@@ -10,13 +10,13 @@ function r_affect!(integ)
         if (integ.u[1] > os.rm)
             os.rm = integ.u[1]
             os.zm = integ.u[3]
-            os.tm = integ.t*os.tau_c
+            os.tm = integ.t
         end
     else
         integ.p && terminate!(integ)
     end
 end
-r_cb = ContinuousCallback(r_condition,r_affect!,abstol=1e-8)
+r_cb = ContinuousCallback(r_condition,r_affect!)#,abstol=1e-8)
 
 function phi_condition(u,t,integ)
     #dz_cur = get_du(integ)[3]
@@ -55,7 +55,7 @@ function poloidal_affect!(integ)
                                  dp > 0.99999 && dprz > 0.99999)
     #if !os.poloidal_complete && ((lr != 0 && lz != 0 && iseven(lr) && iseven(lz)) || lz > 10 || lr > 10)
         os.poloidal_complete=true
-        os.tau_p = integ.t*os.tau_c
+        os.tau_p = integ.t
         os.tau_t = 2pi*os.tau_p/abs(integ.u[2] - integ.sol.u[1][2])
         M = integ.f.f.M
         oc = integ.f.f.oc
@@ -84,7 +84,7 @@ function poloidal_affect!(integ)
         integ.p && terminate!(integ)
     end
 end
-pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,abstol=1e-8)
+pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!)#,abstol=1e-8)
 
 function maxis_condition(u,t,integ)
     raxis = integ.f.f.M.axis[1]
@@ -101,7 +101,7 @@ function maxis_affect!(integ)
     end
 end
 #maxis_cb = DiscreteCallback(maxis_condition,maxis_affect!,save_positions=(false,false))
-maxis_cb = ContinuousCallback(maxis_condition,maxis_affect!,rootfind=true,abstol=1e-8)
+maxis_cb = ContinuousCallback(maxis_condition,maxis_affect!,rootfind=true)#,abstol=1e-8)
 
 function out_of_bounds_condition(u,t,integ)
     M = integ.f.f.M
