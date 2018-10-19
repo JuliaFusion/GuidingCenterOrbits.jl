@@ -137,11 +137,11 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
     sol = sol(range(0.0,stop=sol.t[end],length=floor(Int,sol.t[end]/(dt*1e-6))))
 
-    n = length(sol)-1
-    r = getindex.(sol.u[1:n],1)
-    phi = getindex.(sol.u[1:n],2)
-    z = getindex.(sol.u[1:n],3)
-    dt = [sol.t[i+1] - sol.t[i] for i=1:n]
+    n = length(sol)
+    r = getindex.(sol.u,1)
+    phi = getindex.(sol.u,2)
+    z = getindex.(sol.u,3)
+    dt = [sol.t[max(i+1,n)] - sol.t[i] for i=1:n]
 
     # P_rz
 #    prz = zeros(n)
