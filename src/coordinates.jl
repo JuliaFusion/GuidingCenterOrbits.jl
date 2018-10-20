@@ -5,7 +5,7 @@ struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     pitch::T
     r::T
     z::T
-    m::T
+    m::Float64
     q::Int
 end
 
@@ -38,7 +38,7 @@ struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T #Kinetic + Potential Energy
     mu::T
     p_phi::T
-    m::T
+    m::Float64
     q::Int
 end
 
@@ -119,7 +119,7 @@ struct Particle{T} <: AbstractParticle{T}
     vr::T
     vt::T
     vz::T
-    m::T
+    m::Float64
     q::Int
 end
 
@@ -132,7 +132,7 @@ struct GCParticle{T} <: AbstractParticle{T}
     pitch::T
     r::T
     z::T
-    m::T
+    m::Float64
     q::Int
 end
 
