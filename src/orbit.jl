@@ -53,14 +53,13 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
         r = y[1]
         z = y[3]
 
-        psi = M.psi_rz(r,z)
-        g = M.g(psi)
-
         F = fields(M,r,z)
+        psi = F.psi
+        g = F.g
         B = F.B
         E = F.E
 
-        babs = M.b(r,z)
+        babs = norm(B)
         gradB = Interpolations.gradient(M.b,r,z)
         gradB = SVector{3}(gradB[1],0.0,gradB[2])
         Wperp = oc.mu*babs
@@ -85,7 +84,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
-                   dt, tmax, integrator, one_transit::Bool, store_path::Bool, maxiter::Int)
+                   dt, tmax, integrator, interp_dt, one_transit::Bool, store_path::Bool, maxiter::Int)
 
     r0 = @SVector [gcp.r,0.0,gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
@@ -103,15 +102,20 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     tspan = (0.0,tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
+    if one_transit
+        cb = standard_callback
+    else
+        cb = oob_cb
+    end
     try
         sol = solve(ode_prob, integrator, dt=(dt*1e-6), reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=standard_callback, save_everystep=store_path,adaptive=false)
+                    callback=cb, save_everystep=store_path,adaptive=false)
         dtt = dt*1e-6
         for i=1:maxiter
-            (sol.retcode == :Success && os.class != :incomplete) && break
+            (sol.retcode == :Success && (!one_transit || os.class != :incomplete)) && break
             dtt = dtt/10
             sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=standard_callback, save_everystep=store_path,adaptive=false)
+                        callback=cb, save_everystep=store_path,adaptive=false)
         end
     catch err
         if !isa(err,InterruptException)
@@ -134,7 +138,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
         return OrbitPath(), os
     end
 
-    n = floor(Int,sol.t[end]/(dt*1e-6))
+    n = floor(Int,sol.t[end]/(interp_dt*1e-6))
     sol = sol(range(0.0,stop=sol.t[end],length=n))
 
     r = getindex.(sol.u,1)
@@ -178,15 +182,15 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
-                   one_transit=true, store_path=true,maxiter=3)
-    path, os = get_orbit(M, gcp, dt, tmax, integrator, one_transit,store_path,maxiter)
+                   interp_dt = 0.1, one_transit=true, store_path=true,maxiter=3)
+    path, os = get_orbit(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
     return path, os
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=1000.0, integrator=Tsit5(),
-                   one_transit=true, store_path=true,maxiter=3)
+                   interp_dt=0.1, one_transit=true, store_path=true,maxiter=3)
     gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-    path, os = get_orbit(M, gcp, dt, tmax, integrator, one_transit, store_path,maxiter)
+    path, os = get_orbit(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
     if os.class != :incomplete || os.class != :lost
         os.rm > c.r && (os.class = :degenerate)
     end
