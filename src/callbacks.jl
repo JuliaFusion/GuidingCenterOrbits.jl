@@ -114,4 +114,14 @@ function out_of_bounds_affect!(integ)
 end
 oob_cb = DiscreteCallback(out_of_bounds_condition, out_of_bounds_affect!,save_positions=(false,false))
 
+function wall_condition(wall, u, t, integ)
+    !in_vessel(wall,(u[1],u[3]))
+end
+function wall_affect!(integ)
+    integ.f.f.os.hits_boundary=true
+    integ.f.f.os.class = :lost
+    terminate!(integ)
+end
+wall_cb(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
+
 transit_callback = CallbackSet(r_cb, phi_cb, maxis_cb, pol_cb, oob_cb)
