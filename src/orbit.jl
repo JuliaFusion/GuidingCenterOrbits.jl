@@ -191,8 +191,8 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=10
                    interp_dt=0.1, one_transit=true, store_path=true,maxiter=3)
     gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
     path, os = get_orbit(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
-    if os.class != :incomplete || os.class != :lost
-        os.rm > c.r && (os.class = :degenerate)
+    if os.class != :incomplete && os.class != :lost
+        os.rm > c.r && !isapprox(os.rm,c.r) && (os.class = :degenerate)
     end
     return path, os
 end
