@@ -114,4 +114,4 @@ function out_of_bounds_affect!(integ)
 end
 oob_cb = DiscreteCallback(out_of_bounds_condition, out_of_bounds_affect!,save_positions=(false,false))
 
-standard_callback = CallbackSet(r_cb, phi_cb, maxis_cb, pol_cb, oob_cb)
+transit_callback = CallbackSet(r_cb, phi_cb, maxis_cb, pol_cb, oob_cb)

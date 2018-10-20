@@ -1,4 +1,4 @@
-struct FullOrbitPath{T<:Real}
+struct FullOrbitPath{T<:Number}
     dt::Union{T,Vector{T}}
     r::Vector{T}
     phi::Vector{T}
@@ -50,7 +50,7 @@ function borispush(M, m, v, u, dt)
         return v
 end
 
-function get_orbit(M, pc::Particle; dt= 0.001, tmax = 100)
+function integrate(M, pc::Particle; dt= 0.001, tmax = 100)
 
     dt_sec = dt*1e-6
     tau_c = ion_cyclotron_period(M,pc)

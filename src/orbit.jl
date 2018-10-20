@@ -5,11 +5,11 @@ struct OrbitPath{T}
     pitch::Vector{T}
     energy::Vector{T}
     dt::Vector{T}
-    dl::Vector{T}
+#    dl::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64)
-    OrbitPath(T[],T[],T[],T[],T[],T[],T[])
+    OrbitPath(T[],T[],T[],T[],T[],T[])
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -19,32 +19,36 @@ struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     class::Symbol
     tau_p::T
     tau_t::T
+    path::OrbitPath{T}
 end
 
 function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where {T}
-    return Orbit(c, class, zero(T), zero(T))
+    return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
 end
 
-mutable struct OrbitStatus
+mutable struct OrbitStatus{T<:Number}
     errcode::Int
-    ri::SArray{Tuple{3},Float64,1,3}
-    vi::SArray{Tuple{3},Float64,1,3}
+    ri::SArray{Tuple{3},T,1,3}
+    vi::SArray{Tuple{3},T,1,3}
     initial_dir::Int
     nr::Int
     nphi::Int
     naxis::Int
-    rm::Float64
-    zm::Float64
-    pm::Float64
-    tm::Float64
-    tau_p::Float64
-    tau_t::Float64
+    rm::T
+    zm::T
+    pm::T
+    tm::T
+    tau_p::T
+    tau_t::T
     poloidal_complete::Bool
     hits_boundary::Bool
     class::Symbol
 end
 
-OrbitStatus() = OrbitStatus(1,SVector{3}(0.0,0.0,0.0),SVector{3}(0.0,0.0,0.0),0,0,0,0,0.0,0.0,0.0,0.0,0.0,0.0,false,false,:incomplete)
+function OrbitStatus(T=Float64)
+    z = zero(T)
+    return OrbitStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,0,0,z,z,z,z,z,z,false,false,:incomplete)
+end
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
@@ -83,8 +87,9 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
     return ode
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
-                   dt, tmax, integrator, interp_dt, one_transit::Bool, store_path::Bool, maxiter::Int)
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
+                   dt, tmax, integrator, interp_dt, one_transit::Bool,
+                   store_path::Bool, maxiter::Int)
 
     r0 = @SVector [gcp.r,0.0,gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
@@ -93,7 +98,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     hc = HamiltonianCoordinate(M, gcp)
 
-    os = OrbitStatus()
+    os = OrbitStatus(typeof(gcp.r))
     os.ri = r0
     gc_ode = make_gc_ode(M,hc,os)
     os.vi = gc_ode(r0,false,0.0)
@@ -103,7 +108,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
     if one_transit
-        cb = standard_callback
+        cb = transit_callback
     else
         cb = oob_cb
     end
@@ -148,20 +153,22 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     # P_rz
 #    prz = zeros(n)
-    dl = zeros(n)
-    @inbounds for i=1:n
-        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)
-        v = norm(v_gc[1:2:3])
-#        prz[i] = 1/(T_p*v)
-        dl[i] = v*dt[i]
-    end
+#    dl = zeros(n)
+#    @inbounds for i=1:n
+#        v_gc = gc_ode([r[i],phi[i],z[i]],false,0.0)
+#        v = norm(v_gc[1:2:3])
+##        prz[i] = 1/(T_p*v)
+#        dl[i] = v*dt[i]
+#    end
 
     pitch = get_pitch(M, hc, r, z)
     energy = get_kinetic_energy(M, hc, r, z)
 
-    path = OrbitPath(r,z,phi,pitch,energy,dt,dl)
+    path = OrbitPath(r,z,phi,pitch,energy,dt)
 
     if os.class == :lost
+        os.tau_p = zero(os.tau_p)
+        os.tau_t = zero(os.tau_t)
         return path, os
     end
 
@@ -181,48 +188,68 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, os
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
-                   interp_dt = 0.1, one_transit=true, store_path=true,maxiter=3)
-    path, os = get_orbit(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
-    return path, os
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
+                   interp_dt = 0.1, one_transit=false, store_path=true,maxiter=3)
+    path, stat = integrate(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
+    return path, stat
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; dt=0.1, tmax=1000.0, integrator=Tsit5(),
-                   interp_dt=0.1, one_transit=true, store_path=true,maxiter=3)
+function integrate(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
+    gcp = GCParticle(c)
+    return integrate(M, gcp; kwargs...)
+end
+
+function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
+    path, stat = integrate(M, gcp; one_transit=true, kwargs...)
+
+    if stat.class == :incomplete || stat.class == :lost
+        return Orbit(EPRCoordinate(),stat.class,stat.tau_p,stat.tau_t,path)
+    end
+    hc = HamiltonianCoordinate(M,gcp)
+    KE = get_kinetic_energy(M,hc,stat.rm,stat.zm)
+    c = EPRCoordinate(KE,stat.pm,stat.rm,stat.zm)
+
+    return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
+end
+
+function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-    path, os = get_orbit(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
-    if os.class != :incomplete && os.class != :lost
-        os.rm > c.r && !isapprox(os.rm,c.r) && (os.class = :degenerate)
+    path, stat = integrate(M, gcp; one_transit=true, kwargs...)
+    if stat.class != :incomplete && stat.class != :lost
+        stat.rm > c.r && !isapprox(stat.rm,c.r) && (stat.class = :degenerate)
+    else
+        stat.tau_p=0.0
+        stat.tau_t=0.0
     end
-    return path, os
+    return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
 end
 
-function down_sample(p::OrbitPath{T}; mean_dl=2.5, nmin=30) where {T}
-    L = sum(p.dl)*100 # cm
-    npart = length(p)
-    npart == 0 && error("Orbit path has zero length")
-    np = max(round(Int,L/float(mean_dl)),nmin)
-    grps = partition(1:npart, ceil(Int,npart/float(np)))
-    ngrps = length(grps)
-    r = zeros(T,ngrps)
-    z = zeros(T,ngrps)
-    phi = zeros(T,ngrps)
-    pitch = zeros(T,ngrps)
-    energy = zeros(T,ngrps)
-    dt = zeros(T,ngrps)
-    dl = zeros(T,ngrps)
-    for (i, inds) in enumerate(grps)
-        fi = inds[1]
-        r[i] = p.r[fi]
-        z[i] = p.z[fi]
-        phi[i] = p.phi[fi]
-        pitch[i] = p.pitch[fi]
-        energy[i] = p.energy[fi]
-        dt[i] = sum(p.dt[inds])
-        dl[i] = sum(p.dl[inds])
-    end
-    return OrbitPath(r,z,phi,pitch,energy,dt,dl)
-end
+#function down_sample(p::OrbitPath{T}; mean_dl=2.5, nmin=30) where {T}
+#    L = sum(p.dl)*100 # cm
+#    npart = length(p)
+#    npart == 0 && error("Orbit path has zero length")
+#    np = max(round(Int,L/float(mean_dl)),nmin)
+#    grps = partition(1:npart, ceil(Int,npart/float(np)))
+#    ngrps = length(grps)
+#    r = zeros(T,ngrps)
+#    z = zeros(T,ngrps)
+#    phi = zeros(T,ngrps)
+#    pitch = zeros(T,ngrps)
+#    energy = zeros(T,ngrps)
+#    dt = zeros(T,ngrps)
+#    dl = zeros(T,ngrps)
+#    for (i, inds) in enumerate(grps)
+#        fi = inds[1]
+#        r[i] = p.r[fi]
+#        z[i] = p.z[fi]
+#        phi[i] = p.phi[fi]
+#        pitch[i] = p.pitch[fi]
+#        energy[i] = p.energy[fi]
+#        dt[i] = sum(p.dt[inds])
+#        dl[i] = sum(p.dl[inds])
+#    end
+#    return OrbitPath(r,z,phi,pitch,energy,dt,dl)
+#end
 
 function Base.show(io::IO, orbit::Orbit)
     classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",

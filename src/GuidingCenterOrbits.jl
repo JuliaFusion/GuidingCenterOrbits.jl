@@ -27,7 +27,7 @@ include("callbacks.jl")
 export standard_callback
 
 include("orbit.jl")
-export Orbit, OrbitPath, get_orbit, down_sample, plot_orbit
+export Orbit, OrbitPath, integrate, get_orbit
 
 include("fullorbit.jl")
 export FullOrbitPath

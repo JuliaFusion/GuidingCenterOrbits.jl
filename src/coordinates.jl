@@ -140,6 +140,10 @@ function GCParticle(energy,pitch,r,z; amu=H2_amu, q=1)
     GCParticle(energy, pitch, r, z, mass_u*amu, q)
 end
 
+function GCParticle(c::EPRCoordinate)
+    GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
+end
+
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::GCParticle)
     HamiltonianCoordinate(M,c.energy,c.pitch,c.r,c.z,c.m,c.q)
 end

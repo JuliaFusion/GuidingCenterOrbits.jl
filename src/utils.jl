@@ -1,4 +1,4 @@
-function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Real}
+function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Number}
     psi = M.psi_rz(r,z)
     g = M.g(psi)
     babs = M.b(r,z)
@@ -13,7 +13,7 @@ function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z
     return clamp(pitch,-1.0,1.0)
 end
 
-function get_pitch(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {T<:AbstractOrbitCoordinate, S<:Real}
+function get_pitch(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {T<:AbstractOrbitCoordinate, S<:Number}
     n = length(r)
     pitch = zeros(S,n)
     @inbounds for i=1:n
@@ -26,7 +26,7 @@ function get_pitch(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where {T<:
     return get_pitch(M, c, path.r, path.z)
 end
 
-function get_pitch(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Real}
+function get_pitch(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Number}
     hc = HamiltonianCoordinate(M, c)
     return get_pitch(M, hc, r, z)
 end
@@ -41,7 +41,7 @@ function get_pitch(M::AxisymmetricEquilibrium, o::Orbit)
     return pitch
 end
 
-function get_kinetic_energy(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Real}
+function get_kinetic_energy(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Number}
     psi = M.psi_rz(r,z)
     return c.energy - 1e-3*M.phi(psi)
 end
@@ -59,7 +59,7 @@ function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) w
     return get_kinetic_energy(M, c, path.r, path.z)
 end
 
-function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Real}
+function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Number}
     hc = HamiltonianCoordinate(M, c)
     return get_kinetic_energy(M, hc, r, z)
 end
@@ -120,6 +120,10 @@ function hits_wall(path::OrbitPath, wall::Limiter)
     return any(not_in_vessel)
 end
 
+function ion_cyclotron_frequency(M,p::AbstractParticle)
+    return (M.b(p.r,p.z)*e0)/p.m
+end
+
 function ion_cyclotron_period(M,p::AbstractParticle)
-    return 2*pi*(p.m)/(M.b(p.r,p.z)*e0) #Ion Cyclotron Period
+    return 2*pi/ion_cyclotron_frequency(M,p)
 end
