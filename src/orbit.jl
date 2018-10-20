@@ -65,7 +65,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, os::OrbitStatus) where {T
 
         babs = norm(B)
         gradB = Interpolations.gradient(M.b,r,z)
-        gradB = SVector{3}(gradB[1],0.0,gradB[2])
+        gradB = SVector{3}(gradB[1],zero(gradB[1]),gradB[2])
         Wperp = oc.mu*babs
         vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.m*g)
         Wpara = 0.5*oc.m*vpara^2
@@ -91,7 +91,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
                    dt, tmax, integrator, interp_dt, one_transit::Bool,
                    store_path::Bool, maxiter::Int)
 
-    r0 = @SVector [gcp.r,0.0,gcp.z]
+    r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
         @error "Starting point outside boundary: " r0
     end
@@ -218,8 +218,8 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     if stat.class != :incomplete && stat.class != :lost
         stat.rm > c.r && !isapprox(stat.rm,c.r) && (stat.class = :degenerate)
     else
-        stat.tau_p=0.0
-        stat.tau_t=0.0
+        stat.tau_p=zero(stat.tau_p)
+        stat.tau_t=zero(stat.tau_t)
     end
     return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
 end
