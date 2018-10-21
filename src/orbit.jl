@@ -113,19 +113,19 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         cb = oob_cb
     end
 
-    dtt = dt*1e-6
+    dts = dt*1e-6
     try
-        sol = solve(ode_prob, integrator, dt=(dt*1e-6), reltol=1e-8, abstol=1e-12, verbose=false,
+        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                     callback=cb, save_everystep=store_path,adaptive=adaptive)
     catch err
         if !isa(err,InterruptException)
             if adaptive
-                sol = solve(ode_prob, integrator, dt=(dt*1e-6), reltol=1e-8, abstol=1e-12, verbose=false,
+                sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                             callback=cb, save_everystep=store_path,adaptive=false)
             else
-                sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
+                sol = solve(ode_prob, ImplicitMidpoint(), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                             callback=cb, save_everystep=store_path)
-                dtt = dtt/10
+                dts = dts/10
             end
         else
             throw(err)
@@ -133,16 +133,16 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     for i=1:maxiter
-        (sol.retcode == :Success && (!one_transit || os.class != :incomplete)) && break
+        (sol.retcode == :Success) && break
         try
-            sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
+            sol = solve(ode_prob, ImplicitMidpoint(), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, save_everystep=store_path)
         catch err
             if isa(err,InterruptException)
                 throw(err)
             end
         end
-        dtt = dtt/10
+        dts = dts/10
     end
 
     if sol.retcode != :Success
@@ -152,17 +152,27 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
     os.errcode=0
 
+    if one_transit && os.class != :lost && !os.poloidal_complete #Try one more time
+        sol = solve(ode_prob, ImplicitMidpoint(), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+                    callback=cb, save_everystep=store_path)
+    end
+    if one_transit && os.class != :lost && !os.poloidal_complete
+        @warn "Orbit did not complete one transit in allotted tmax" gcp tmax
+    end
+
     if !store_path
         return OrbitPath(), os
     end
 
     n = floor(Int,sol.t[end]/(interp_dt*1e-6))
-    sol = sol(range(0.0,stop=sol.t[end],length=n))
+    if n > 10
+        sol = sol(range(0.0,stop=sol.t[end],length=n))
+    end
 
     r = getindex.(sol.u,1)
     phi = getindex.(sol.u,2)
     z = getindex.(sol.u,3)
-    dt = [(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
+    dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
 
     # P_rz
 #    prz = zeros(n)
