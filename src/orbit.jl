@@ -89,7 +89,7 @@ end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
                    dt, tmax, integrator, interp_dt, one_transit::Bool,
-                   store_path::Bool, maxiter::Int)
+                   store_path::Bool, maxiter::Int,adaptive::Bool)
 
     r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
@@ -104,7 +104,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     os.vi = gc_ode(r0,false,0.0)
     os.initial_dir = abs(os.vi[1]) > abs(os.vi[3]) ? 1 : 3
 
-    tspan = (0.0,tmax*1e-6)
+    tspan = (zero(gcp.r),one(gcp.r)*tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
     if one_transit
@@ -112,24 +112,37 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     else
         cb = oob_cb
     end
+
+    dtt = dt*1e-6
     try
         sol = solve(ode_prob, integrator, dt=(dt*1e-6), reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=cb, save_everystep=store_path,adaptive=false)
-        dtt = dt*1e-6
-        for i=1:maxiter
-            (sol.retcode == :Success && (!one_transit || os.class != :incomplete)) && break
-            dtt = dtt/10
-            sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, save_everystep=store_path,adaptive=false)
-        end
+                    callback=cb, save_everystep=store_path,adaptive=adaptive)
     catch err
         if !isa(err,InterruptException)
-            println(err)
-            @show gcp
-            return OrbitPath(), os
+            if adaptive
+                sol = solve(ode_prob, integrator, dt=(dt*1e-6), reltol=1e-8, abstol=1e-12, verbose=false,
+                            callback=cb, save_everystep=store_path,adaptive=false)
+            else
+                sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
+                            callback=cb, save_everystep=store_path)
+                dtt = dtt/10
+            end
         else
             throw(err)
         end
+    end
+
+    for i=1:maxiter
+        (sol.retcode == :Success && (!one_transit || os.class != :incomplete)) && break
+        try
+            sol = solve(ode_prob, ImplicitMidpoint(), dt=dtt, reltol=1e-8, abstol=1e-12, verbose=false,
+                        callback=cb, save_everystep=store_path)
+        catch err
+            if isa(err,InterruptException)
+                throw(err)
+            end
+        end
+        dtt = dtt/10
     end
 
     if sol.retcode != :Success
@@ -189,8 +202,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
-                   interp_dt = 0.1, one_transit=false, store_path=true,maxiter=3)
-    path, stat = integrate(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter)
+                   interp_dt = 0.1, one_transit=false, store_path=true,maxiter=3,adaptive=true)
+    path, stat = integrate(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter,adaptive)
     return path, stat
 end
 
