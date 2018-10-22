@@ -187,9 +187,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         return OrbitPath(), stat
     end
 
-    n = floor(Int,sol.t[end]/(interp_dt*1e-6))
-    if n > 10
-        sol = sol(range(0.0,stop=sol.t[end],length=n))
+    if interp_dt > 0.0
+        n = floor(Int,sol.t[end]/(interp_dt*1e-6))
+        if n > 10
+            sol = sol(range(0.0,stop=sol.t[end],length=n))
+        end
     end
 
     r = getindex.(sol.u,1)
@@ -303,7 +305,7 @@ function Base.show(io::IO, orbit::Orbit)
                    :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ")
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
-    println(io, class_str*"Orbit Type:")
+    println(io, class_str*"Orbit:")
     @printf(io, " τₚ = %.3f μs\n", orbit.tau_p*1e6)
     @printf(io, " τₜ = %.3f μs", orbit.tau_t*1e6)
 end
