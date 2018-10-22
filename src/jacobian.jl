@@ -1,7 +1,6 @@
 function eprz_to_eprt(M, energy, pitch, r, z; m=H2_amu, q=1, kwargs...)
 
     islost=[false]
-    z = 
     f = function c(x; kwargs...)
         gcp = GCParticle(x[1], x[2], x[3], x[4], H2_amu*mass_u, q)
         path, stat = integrate(M, gcp; store_path=false, one_transit=true, kwargs...)
