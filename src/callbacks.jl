@@ -122,6 +122,6 @@ function wall_affect!(integ)
     integ.f.f.stat.class = :lost
     terminate!(integ)
 end
-wall_cb(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
+wall_callback(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
 
 transit_callback = CallbackSet(r_cb, phi_cb, maxis_cb, pol_cb, oob_cb)

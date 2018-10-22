@@ -88,8 +88,8 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<
 end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
-                   dt, tmax, integrator, interp_dt, one_transit::Bool,
-                   store_path::Bool, maxiter::Int,adaptive::Bool,autodiff::Bool)
+                   dt, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt,
+                   one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool)
 
     r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
@@ -107,10 +107,19 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     tspan = (zero(gcp.r),one(gcp.r)*tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
+    if wall != nothing
+        wall_cb = wall_callback(wall)
+    end
     if one_transit
         cb = transit_callback
+        if wall != nothing
+            cb = CallbackSet(cb.continuous_callbacks..., wall_cb, cb.discrete_callbacks...)
+        end
     else
         cb = oob_cb
+        if wall != nothing
+            cb = CallbackSet(wall_cb,oob_cb)
+        end
     end
 
     dts = dt*1e-6
@@ -225,9 +234,9 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(), wall=nothing,
                    interp_dt = 0.1, one_transit=false, store_path=true,maxiter=3,adaptive=true,autodiff=true)
-    path, stat = integrate(M, gcp, dt, tmax, integrator, interp_dt, one_transit, store_path, maxiter,adaptive,autodiff)
+    path, stat = integrate(M, gcp, dt, tmax, integrator, wall, interp_dt, one_transit, store_path, maxiter, adaptive, autodiff)
     return path, stat
 end
 
