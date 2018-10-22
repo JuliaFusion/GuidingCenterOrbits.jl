@@ -3,14 +3,14 @@ function r_condition(u,t,integ)
     v[1]/sqrt(v[1]^2 +v[2]^2)
 end
 function r_affect!(integ)
-    os = integ.f.f.os
+    stat = integ.f.f.stat
     #println("r callback ",integ.t*1e6," ",integ.u)
-    if !os.poloidal_complete
-        os.nr += 1
-        if (integ.u[1] > os.rm)
-            os.rm = integ.u[1]
-            os.zm = integ.u[3]
-            os.tm = integ.t
+    if !stat.poloidal_complete
+        stat.nr += 1
+        if (integ.u[1] > stat.rm)
+            stat.rm = integ.u[1]
+            stat.zm = integ.u[3]
+            stat.tm = integ.t
         end
     else
         integ.p && terminate!(integ)
@@ -26,10 +26,10 @@ function phi_condition(u,t,integ)
     v[2]/norm(v)
 end
 function phi_affect!(integ)
-    os = integ.f.f.os
+    stat = integ.f.f.stat
     #println("phi callback ",integ.t*1e6," ",integ.u)
-    if !os.poloidal_complete
-        os.nphi += 1
+    if !stat.poloidal_complete
+        stat.nphi += 1
     else
         integ.p && terminate!(integ)
     end
@@ -38,47 +38,47 @@ end
 phi_cb = ContinuousCallback(phi_condition,phi_affect!,rootfind=false)
 
 function poloidal_condition(u,t,integ)
-    os = integ.f.f.os
-    i = os.initial_dir
-    u[i] - os.ri[i]
+    stat = integ.f.f.stat
+    i = stat.initial_dir
+    u[i] - stat.ri[i]
 end
 function poloidal_affect!(integ)
-    os = integ.f.f.os
-    vi = os.vi
+    stat = integ.f.f.stat
+    vi = stat.vi
     vc = integ.f(integ.u,integ.p,integ.t)
     dp = dot(vi,vc)/(norm(vi)*norm(vc))
     vi_rz = SVector(vi[1],vi[3])
     vc_rz = SVector(vc[1],vc[3])
     dprz = dot(vi_rz,vc_rz)/(norm(vi_rz)*norm(vc_rz))
     #println("poloidal callback ",integ.t*1e6," ",integ.u," ",lr," ",lz)
-    if !os.poloidal_complete && (os.nr >= 2 && (os.naxis == 0 || os.naxis >= 2) &&
+    if !stat.poloidal_complete && (stat.nr >= 2 && (stat.naxis == 0 || stat.naxis >= 2) &&
                                  dp > 0.99999 && dprz > 0.99999)
-    #if !os.poloidal_complete && ((lr != 0 && lz != 0 && iseven(lr) && iseven(lz)) || lz > 10 || lr > 10)
-        os.poloidal_complete=true
-        os.tau_p = integ.t
-        os.tau_t = 2pi*os.tau_p/abs(integ.u[2] - integ.sol.u[1][2])
+    #if !stat.poloidal_complete && ((lr != 0 && lz != 0 && iseven(lr) && iseven(lz)) || lz > 10 || lr > 10)
+        stat.poloidal_complete=true
+        stat.tau_p = integ.t
+        stat.tau_t = 2pi*stat.tau_p/abs(integ.u[2] - integ.sol.u[1][2])
         M = integ.f.f.M
         oc = integ.f.f.oc
-        os.pm = get_pitch(M,oc,os.rm,os.zm)
-        if os.nphi > 0
-            if os.naxis == 0 || os.naxis == 4
-                os.class = :trapped
-            elseif os.naxis == 2
-                os.class = :potato
+        stat.pm = get_pitch(M,oc,stat.rm,stat.zm)
+        if stat.nphi > 0
+            if stat.naxis == 0 || stat.naxis == 4
+                stat.class = :trapped
+            elseif stat.naxis == 2
+                stat.class = :potato
             else
-                os.class = :unknown
+                stat.class = :unknown
             end
         else
-            if os.naxis == 2
-                if os.pm > 0
-                    os.class = :co_passing
+            if stat.naxis == 2
+                if stat.pm > 0
+                    stat.class = :co_passing
                 else
-                    os.class = :ctr_passing
+                    stat.class = :ctr_passing
                 end
-            elseif os.naxis == 0
-                os.class = :stagnation
+            elseif stat.naxis == 0
+                stat.class = :stagnation
             else
-                os.class = :unknown
+                stat.class = :unknown
             end
         end
         integ.p && terminate!(integ)
@@ -92,10 +92,10 @@ function maxis_condition(u,t,integ)
     u[1] - raxis
 end
 function maxis_affect!(integ)
-    os = integ.f.f.os
+    stat = integ.f.f.stat
     #println("maxis callback ",integ.t*1e6," ",integ.u)
-    if !os.poloidal_complete
-        os.naxis += 1
+    if !stat.poloidal_complete
+        stat.naxis += 1
     else
         integ.p && terminate!(integ)
     end
@@ -108,8 +108,8 @@ function out_of_bounds_condition(u,t,integ)
     !((M.r[1] < u[1] < M.r[end]) && (M.z[1] < u[3] < M.z[end]))
 end
 function out_of_bounds_affect!(integ)
-    integ.f.f.os.hits_boundary=true
-    integ.f.f.os.class = :lost
+    integ.f.f.stat.hits_boundary=true
+    integ.f.f.stat.class = :lost
     terminate!(integ)
 end
 oob_cb = DiscreteCallback(out_of_bounds_condition, out_of_bounds_affect!,save_positions=(false,false))
@@ -118,8 +118,8 @@ function wall_condition(wall, u, t, integ)
     !in_vessel(wall,(u[1],u[3]))
 end
 function wall_affect!(integ)
-    integ.f.f.os.hits_boundary=true
-    integ.f.f.os.class = :lost
+    integ.f.f.stat.hits_boundary=true
+    integ.f.f.stat.class = :lost
     terminate!(integ)
 end
 wall_cb(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
