@@ -137,7 +137,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         end
     end
 
-    for i=1:maxiter
+    for i=1:maxiter #Try progressivly smaller time step with symplectic integrator
         success && break
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
