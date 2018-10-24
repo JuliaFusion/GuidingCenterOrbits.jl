@@ -169,7 +169,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
         try
-            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, save_everystep=store_path)
             success = sol.retcode == :Success
         catch err
@@ -180,7 +180,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
-        @warn "Orbit did not complete one transit in allotted tmax" gcp tmax
+        @warn "Orbit did not complete one transit in allotted time" gcp tmax
     end
 
     if !store_path

@@ -51,8 +51,9 @@ function poloidal_affect!(integ)
     vc_rz = SVector(vc[1],vc[3])
     dprz = dot(vi_rz,vc_rz)/(norm(vi_rz)*norm(vc_rz))
     #println("poloidal callback ",integ.t*1e6," ",integ.u," ",lr," ",lz)
+    #println(dp," ",dprz)
     if !stat.poloidal_complete && (stat.nr >= 2 && (stat.naxis == 0 || stat.naxis >= 2) &&
-                                 dp > 0.99999 && dprz > 0.99999)
+                                   (dp > 0.9999 && dprz > 0.999))
     #if !stat.poloidal_complete && ((lr != 0 && lz != 0 && iseven(lr) && iseven(lz)) || lz > 10 || lr > 10)
         stat.poloidal_complete=true
         stat.tau_p = integ.t
