@@ -192,6 +192,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         if n > 10
             sol = sol(range(0.0,stop=sol.t[end],length=n))
         end
+    else
+        n = length(sol)
     end
 
     r = getindex.(sol.u,1)
@@ -263,12 +265,12 @@ end
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     #work around integrate 1ms to get away from rmax
     gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-    path, stat = integrate(M, gcp; tmax=1,interp_dt=0.0)
+    path, stat = integrate(M, gcp; tmax=0.2,interp_dt=0.0)
 
     gcp = GCParticle(path.energy[end],path.pitch[end],path.r[end],path.z[end],c.m,c.q)
     path, stat = integrate(M, gcp; one_transit=true, kwargs...)
     if stat.class != :incomplete && stat.class != :lost
-        stat.rm > c.r && !isapprox(stat.rm,c.r) && (stat.class = :degenerate)
+        stat.rm > c.r && !isapprox(stat.rm,c.r,rtol=1e-4) && (stat.class = :degenerate)
     else
         stat.tau_p=zero(stat.tau_p)
         stat.tau_t=zero(stat.tau_t)
