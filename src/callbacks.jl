@@ -16,7 +16,7 @@ function r_affect!(integ)
         integ.p && terminate!(integ)
     end
 end
-r_cb = ContinuousCallback(r_condition,r_affect!,abstol=1e-8)
+r_cb = ContinuousCallback(r_condition,r_affect!,abstol=1e-6)
 
 function phi_condition(u,t,integ)
     #dz_cur = get_du(integ)[3]
@@ -86,7 +86,7 @@ function poloidal_affect!(integ)
         integ.p && terminate!(integ)
     end
 end
-pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,abstol=1e-8)
+pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,abstol=1e-6)
 
 function maxis_condition(u,t,integ)
     raxis = integ.f.f.M.axis[1]
@@ -103,7 +103,7 @@ function maxis_affect!(integ)
     end
 end
 #maxis_cb = DiscreteCallback(maxis_condition,maxis_affect!,save_positions=(false,false))
-maxis_cb = ContinuousCallback(maxis_condition,maxis_affect!,abstol=1e-8)
+maxis_cb = ContinuousCallback(maxis_condition,maxis_affect!,abstol=1e-6)
 
 function out_of_bounds_condition(u,t,integ)
     M = integ.f.f.M
