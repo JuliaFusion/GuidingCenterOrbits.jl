@@ -70,16 +70,16 @@ function get_kinetic_energy(M::AxisymmetricEquilibrium, o::Orbit)
     return get_kinetic_energy(M, o.coordinate, o.path)
 end
 
-function classify(path::OrbitPath, axis; n=length(path))
+function classify(r, z, pitch, axis; n=length(r))
 
-    pp = take(zip(path.r,path.z),n)
+    pp = take(zip(r,z),n)
     op = Limiter()
     for p in pp
         push!(op.vertices,p)
     end
-    push!(op.vertices,first(pp))
+    #push!(op.vertices,first(pp))
 
-    sign_p = sign.(path.pitch)
+    sign_p = sign.(pitch)
     if in_vessel(op, axis)
         if all(sign_p .== sign_p[1])
             if sign_p[1] > 0.0
@@ -99,6 +99,10 @@ function classify(path::OrbitPath, axis; n=length(path))
     end
 
     return class
+end
+
+function classify(path::OrbitPath, axis)
+    return classify(path.r,path.z,path.pitch, axis, n=length(path))
 end
 
 function hits_wall_path(path::OrbitPath, wall::Limiter)

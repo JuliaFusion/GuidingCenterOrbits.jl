@@ -126,7 +126,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     success = false
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=cb, save_everystep=store_path,adaptive=adaptive)
+                    callback=cb,adaptive=adaptive)
         success = sol.retcode == :Success
     catch err
         if isa(err,InterruptException)
@@ -137,7 +137,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if !success && adaptive #Try non-adaptive
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, save_everystep=store_path,adaptive=false)
+                        callback=cb,adaptive=false)
             success = sol.retcode == :Success
         catch err
             if isa(err,InterruptException)
@@ -150,7 +150,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         success && break
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, save_everystep=store_path)
+                        callback=cb)
             success = sol.retcode == :Success
         catch err
             if isa(err,InterruptException)
@@ -170,7 +170,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, save_everystep=store_path)
+                        callback=cb)
             success = sol.retcode == :Success
         catch err
             if isa(err,InterruptException)
@@ -183,11 +183,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         @warn "Orbit did not complete one transit in allotted time" gcp tmax
     end
 
-    if !store_path
-        return OrbitPath(), stat
-    end
-
-    if interp_dt > 0.0
+    if interp_dt > 0.0 && store_path
         n = floor(Int,sol.t[end]/(interp_dt*1e-6))
         if n > 10
             sol = sol(range(0.0,stop=sol.t[end],length=n))
@@ -196,10 +192,23 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         n = length(sol)
     end
 
+    #Needed for classification
     r = getindex.(sol.u,1)
-    phi = getindex.(sol.u,2)
     z = getindex.(sol.u,3)
+    pitch = get_pitch(M, hc, r, z)
+
+    if stat.class == :unknown
+        stat.class = classify(r,z,pitch,M.axis)
+    end
+
+    if !store_path
+        return OrbitPath(), stat
+    end
+
+    # Get everything else in path
+    phi = getindex.(sol.u,2)
     dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
+    energy = get_kinetic_energy(M, hc, r, z)
 
     # P_rz
 #    prz = zeros(n)
@@ -211,28 +220,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 #        dl[i] = v*dt[i]
 #    end
 
-    pitch = get_pitch(M, hc, r, z)
-    energy = get_kinetic_energy(M, hc, r, z)
-
     path = OrbitPath(r,z,phi,pitch,energy,dt)
 
     if stat.class == :lost
         stat.tau_p = zero(stat.tau_p)
         stat.tau_t = zero(stat.tau_t)
         return path, stat
-    end
-
-    #class = classify(path,M.axis)
-    #if stat.class == :unknown
-    #    stat.class = class
-    #else
-    #    if stat.class != class
-    #        @warn "Classification disagrees" stat.class class gcp
-    #    end
-    #    stat.class = class
-    #end
-    if stat.class == :unknown
-        stat.class = classify(path,M.axis)
     end
 
     return path, stat
