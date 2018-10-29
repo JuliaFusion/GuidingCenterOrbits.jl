@@ -73,7 +73,7 @@ end
 function classify(r, z, pitch, axis; n=length(r))
 
     pp = take(zip(r,z),n)
-    op = Limiter()
+    op = Limiter(eltype(r))
     for p in pp
         push!(op.vertices,p)
     end

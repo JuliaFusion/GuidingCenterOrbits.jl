@@ -3,7 +3,7 @@ function eprz_to_eprt(M, energy, pitch, r, z; m=H2_amu, q=1, kwargs...)
     islost=[false]
     f = function c(x; kwargs...)
         gcp = GCParticle(x[1], x[2], x[3], x[4], H2_amu*mass_u, q)
-        path, stat = integrate(M, gcp; store_path=false, one_transit=true, kwargs...)
+        path, stat = integrate(M, gcp; store_path=false, classify_orbit=false, one_transit=true, kwargs...)
         if stat.class in (:lost,:incomplete) || stat.errcode == 1
             islost[1] = true
             return x

@@ -88,7 +88,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<
 end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
-                   dt, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt,
+                   dt, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool)
 
     r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
@@ -126,7 +126,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     success = false
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=cb,adaptive=adaptive)
+                    callback=cb,adaptive=adaptive,save_everystep=store_path)
         success = sol.retcode == :Success
     catch err
         if isa(err,InterruptException)
@@ -137,7 +137,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if !success && adaptive #Try non-adaptive
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,adaptive=false)
+                        callback=cb,adaptive=false,save_everystep=store_path)
             success = sol.retcode == :Success
         catch err
             if isa(err,InterruptException)
@@ -150,7 +150,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         success && break
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb)
+                        callback=cb,save_everystep=store_path)
             success = sol.retcode == :Success
         catch err
             if isa(err,InterruptException)
@@ -197,7 +197,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     z = getindex.(sol.u,3)
     pitch = get_pitch(M, hc, r, z)
 
-    if stat.class == :unknown
+    if stat.class == :unknown && store_path && classify_orbit && one_transit
         stat.class = classify(r,z,pitch,M.axis)
     end
 
@@ -232,8 +232,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(), wall=nothing,
-                   interp_dt = 0.1, one_transit=false, store_path=true,maxiter=3,adaptive=true,autodiff=true)
-    path, stat = integrate(M, gcp, dt, tmax, integrator, wall, interp_dt, one_transit, store_path, maxiter, adaptive, autodiff)
+                   interp_dt = 0.1, classify_orbit=true,one_transit=false, store_path=true,maxiter=3,adaptive=true,autodiff=true)
+    path, stat = integrate(M, gcp, dt, tmax, integrator, wall, interp_dt, classify_orbit, one_transit, store_path, maxiter, adaptive, autodiff)
     return path, stat
 end
 
