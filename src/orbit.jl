@@ -91,15 +91,16 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
                    dt, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool)
 
+    stat = GCStatus(typeof(gcp.r))
+
     r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
-        @error "Starting point outside boundary: " r0
+        @warn "Starting point outside boundary: " r0
+        return OrbitPath(), stat
     end
 
-    hc = HamiltonianCoordinate(M, gcp)
-
-    stat = GCStatus(typeof(gcp.r))
     stat.ri = r0
+    hc = HamiltonianCoordinate(M, gcp)
     gc_ode = make_gc_ode(M,hc,stat)
     stat.vi = gc_ode(r0,false,0.0)
     stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3
