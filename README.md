@@ -6,8 +6,8 @@
 
 [![codecov.io](http://codecov.io/github/lstagner/GuidingCenterOrbits.jl/coverage.svg?branch=master)](http://codecov.io/github/lstagner/GuidingCenterOrbits.jl?branch=master)
 
-#Basic Usage
-```
+# Basic Usage
+```julia
 using EFIT, Equilibrium, GuidingCenterOrbits
 
 #Read in equilibrium
