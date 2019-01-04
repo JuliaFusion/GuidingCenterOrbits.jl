@@ -126,7 +126,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     dts = dt*1e-6
     success = false
     try
-        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                     callback=cb,adaptive=adaptive,save_everystep=store_path)
         success = sol.retcode == :Success || sol.retcode == :Terminated
     catch err
@@ -137,7 +137,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     if !success && adaptive #Try non-adaptive
         try
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=false,save_everystep=store_path)
             success = sol.retcode == :Success || sol.retcode == :Terminated
         catch err
@@ -151,7 +151,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         success && break
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,save_everystep=store_path)
+                        callback=cb,save_everystep=store_path, force_dtmin=true)
             success = sol.retcode == :Success || sol.retcode == :Terminated
         catch err
             if isa(err,InterruptException)
@@ -171,7 +171,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb)
+                        callback=cb, force_dtmin=true)
             success = sol.retcode == :Success || sol.retcode == :Terminated
         catch err
             if isa(err,InterruptException)
