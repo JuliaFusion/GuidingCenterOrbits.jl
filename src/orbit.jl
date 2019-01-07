@@ -125,10 +125,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     dts = dt*1e-6
     success = false
+    retcode = :TotalFailure
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                     callback=cb,adaptive=adaptive,save_everystep=store_path)
         success = sol.retcode == :Success || sol.retcode == :Terminated
+        retcode = sol.retcode
     catch err
         if isa(err,InterruptException)
             throw(err)
@@ -140,6 +142,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=false,save_everystep=store_path)
             success = sol.retcode == :Success || sol.retcode == :Terminated
+            retcode = sol.retcode
         catch err
             if isa(err,InterruptException)
                 throw(err)
@@ -153,6 +156,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb,save_everystep=store_path, force_dtmin=true)
             success = sol.retcode == :Success || sol.retcode == :Terminated
+            retcode = sol.retcode
         catch err
             if isa(err,InterruptException)
                 throw(err)
@@ -162,7 +166,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     if !success
-        @warn "Unable to find Guiding Center Orbit" gcp sol.retcode
+        @warn "Unable to find Guiding Center Orbit" gcp retcode
         stat.class = :incomplete
         return OrbitPath(), stat
     end
@@ -173,6 +177,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true)
             success = sol.retcode == :Success || sol.retcode == :Terminated
+            retcode = sol.retcode
         catch err
             if isa(err,InterruptException)
                 throw(err)
@@ -181,7 +186,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
-        @warn "Orbit did not complete one transit in allotted time" gcp tmax sol.retcode
+        @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
     end
 
     if interp_dt > 0.0 && store_path
