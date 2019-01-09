@@ -273,37 +273,10 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
 end
 
-#function down_sample(p::OrbitPath{T}; mean_dl=2.5, nmin=30) where {T}
-#    L = sum(p.dl)*100 # cm
-#    npart = length(p)
-#    npart == 0 && error("Orbit path has zero length")
-#    np = max(round(Int,L/float(mean_dl)),nmin)
-#    grps = partition(1:npart, ceil(Int,npart/float(np)))
-#    ngrps = length(grps)
-#    r = zeros(T,ngrps)
-#    z = zeros(T,ngrps)
-#    phi = zeros(T,ngrps)
-#    pitch = zeros(T,ngrps)
-#    energy = zeros(T,ngrps)
-#    dt = zeros(T,ngrps)
-#    dl = zeros(T,ngrps)
-#    for (i, inds) in enumerate(grps)
-#        fi = inds[1]
-#        r[i] = p.r[fi]
-#        z[i] = p.z[fi]
-#        phi[i] = p.phi[fi]
-#        pitch[i] = p.pitch[fi]
-#        energy[i] = p.energy[fi]
-#        dt[i] = sum(p.dt[inds])
-#        dl[i] = sum(p.dl[inds])
-#    end
-#    return OrbitPath(r,z,phi,pitch,energy,dt,dl)
-#end
-
 function Base.show(io::IO, orbit::Orbit)
     classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
                    :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
-                   :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ")
+                   :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ",:unknown=>"Unknown ")
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
     println(io, class_str*"Orbit:")
