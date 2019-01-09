@@ -24,7 +24,7 @@ function angle_affect!(integ)
         integ.p && terminate!(integ)
     end
 end
-angle_cb = ContinuousCallback(angle_condition,angle_affect!)
+angle_cb = ContinuousCallback(angle_condition,angle_affect!,abstol=1e-6)
 
 function r_condition(u,t,integ)
     v = integ.f(u,integ.p,integ.t)
@@ -66,4 +66,4 @@ function wall_affect!(integ)
 end
 wall_callback(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
 
-transit_callback = CallbackSet(angle_cb, r_cb, oob_cb)
+transit_callback = CallbackSet(r_cb, angle_cb, oob_cb)

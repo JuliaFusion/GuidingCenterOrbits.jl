@@ -86,7 +86,7 @@ end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
                    dt, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool)
+                   one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,verbose::Bool)
 
     stat = GCStatus(typeof(gcp.r))
 
@@ -123,11 +123,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     success = false
     retcode = :TotalFailure
     try
-        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                     callback=cb,adaptive=adaptive,save_everystep=store_path)
         success = sol.retcode == :Success || sol.retcode == :Terminated
         retcode = sol.retcode
     catch err
+        verbose && println(err)
         if isa(err,InterruptException)
             throw(err)
         end
@@ -135,11 +136,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     if !success && adaptive #Try non-adaptive
         try
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb,adaptive=false,save_everystep=store_path)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
+            verbose && println(err)
             if isa(err,InterruptException)
                 throw(err)
             end
@@ -150,10 +152,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         success && break
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,save_everystep=store_path, force_dtmin=true)
+                        callback=cb,save_everystep=store_path)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
+            verbose && println(err)
             if isa(err,InterruptException)
                 throw(err)
             end
@@ -171,10 +174,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, force_dtmin=true)
+                        callback=cb)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
+            verbose && println(err)
             if isa(err,InterruptException)
                 throw(err)
             end
@@ -233,9 +237,14 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(), wall=nothing,
-                   interp_dt = 0.1, classify_orbit=true,one_transit=false, store_path=true,maxiter=3,adaptive=true,autodiff=true)
-    path, stat = integrate(M, gcp, dt, tmax, integrator, wall, interp_dt, classify_orbit, one_transit, store_path, maxiter, adaptive, autodiff)
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
+                   wall=nothing, interp_dt = 0.1, classify_orbit=true,one_transit=false, store_path=true,
+                   maxiter=3, adaptive=true, autodiff=true, verbose=false)
+
+    path, stat = integrate(M, gcp, dt, tmax, integrator, wall, interp_dt,
+                           classify_orbit, one_transit, store_path, maxiter,
+                           adaptive, autodiff,verbose)
+
     return path, stat
 end
 
@@ -248,7 +257,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
     path, stat = integrate(M, gcp; one_transit=true, kwargs...)
 
     if stat.class == :incomplete || stat.class == :lost
-        return Orbit(EPRCoordinate(),stat.class,stat.tau_p,stat.tau_t,path)
+        return Orbit(EPRCoordinate(typeof(gcp.r)),stat.class,stat.tau_p,stat.tau_t,path)
     end
     hc = HamiltonianCoordinate(M,gcp)
     KE = get_kinetic_energy(M,hc,stat.rm,stat.zm)
