@@ -30,10 +30,7 @@ mutable struct GCStatus{T<:Number}
     errcode::Int
     ri::SArray{Tuple{3},T,1,3}
     vi::SArray{Tuple{3},T,1,3}
-    initial_dir::Int
     nr::Int
-    nphi::Int
-    naxis::Int
     rm::T
     zm::T
     pm::T
@@ -47,7 +44,7 @@ end
 
 function GCStatus(T=Float64)
     z = zero(T)
-    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,0,0,z,z,z,z,z,z,false,false,:incomplete)
+    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<:AbstractOrbitCoordinate}
@@ -103,7 +100,6 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     hc = HamiltonianCoordinate(M, gcp)
     gc_ode = make_gc_ode(M,hc,stat)
     stat.vi = gc_ode(r0,false,0.0)
-    stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3
 
     tspan = (zero(gcp.r),one(gcp.r)*tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
