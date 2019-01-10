@@ -28,7 +28,7 @@ angle_cb = ContinuousCallback(angle_condition,angle_affect!,abstol=1e-6)
 
 function r_condition(u,t,integ)
     v = integ.f(u,integ.p,integ.t)
-    v[1]
+    v[1]/sqrt(v[1]^2 + v[3]^2)
 end
 function r_affect!(integ)
     stat = integ.f.f.stat
@@ -66,4 +66,4 @@ function wall_affect!(integ)
 end
 wall_callback(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
 
-transit_callback = CallbackSet(r_cb, angle_cb, oob_cb)
+transit_callback = CallbackSet(angle_cb, r_cb, oob_cb)

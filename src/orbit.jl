@@ -97,6 +97,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     stat.ri = r0
+    stat.rm = r0[1]
+    stat.zm = r0[3]
     hc = HamiltonianCoordinate(M, gcp)
     gc_ode = make_gc_ode(M,hc,stat)
     stat.vi = gc_ode(r0,false,0.0)
@@ -151,8 +153,10 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     for i=1:maxiter #Try progressivly smaller time step with symplectic integrator
         success && break
         try
-            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,save_everystep=store_path)
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+                        callback=cb,adaptive=false,save_everystep=store_path)
+            #sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+            #            callback=cb,save_everystep=store_path)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
@@ -165,7 +169,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     if !success
-        @warn "Unable to find Guiding Center Orbit" gcp retcode
+        verbose && @warn "Unable to find Guiding Center Orbit" gcp retcode
         stat.class = :incomplete
         return OrbitPath(), stat
     end
@@ -186,7 +190,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
-        @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
+        verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
+        stat.errcode=1
     end
 
     if interp_dt > 0.0 && store_path
