@@ -126,7 +126,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     retcode = :TotalFailure
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=cb,adaptive=adaptive,save_everystep=store_path)
+                    callback=cb,adaptive=adaptive,save_everystep=store_path,force_dtmin=true)
         success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
                   (stat.class != :incomplete || !one_transit)
         retcode = sol.retcode
@@ -140,7 +140,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     if !success && adaptive #Try non-adaptive
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,adaptive=false,save_everystep=store_path)
+                        callback=cb,adaptive=false,save_everystep=store_path,force_dtmin=true)
             success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
                       (stat.class != :incomplete || !one_transit)
             retcode = sol.retcode
@@ -156,7 +156,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         success && break
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,adaptive=false,save_everystep=store_path)
+                        callback=cb,adaptive=false,save_everystep=store_path,force_dtmin=true)
             success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
                       (stat.class != :incomplete || !one_transit)
             retcode = sol.retcode
