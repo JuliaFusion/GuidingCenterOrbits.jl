@@ -127,7 +127,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                     callback=cb,adaptive=adaptive,save_everystep=store_path)
-        success = sol.retcode == :Success || sol.retcode == :Terminated
+        success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                  (stat.class != :incomplete || !one_transit)
         retcode = sol.retcode
     catch err
         verbose && println(err)
@@ -140,7 +141,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb,adaptive=false,save_everystep=store_path)
-            success = sol.retcode == :Success || sol.retcode == :Terminated
+            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                      (stat.class != :incomplete || !one_transit)
             retcode = sol.retcode
         catch err
             verbose && println(err)
@@ -155,9 +157,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb,adaptive=false,save_everystep=store_path)
-            #sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-            #            callback=cb,save_everystep=store_path)
-            success = sol.retcode == :Success || sol.retcode == :Terminated
+            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                      (stat.class != :incomplete || !one_transit)
             retcode = sol.retcode
         catch err
             verbose && println(err)
@@ -174,20 +175,6 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
         return OrbitPath(), stat
     end
     stat.errcode=0
-
-    if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
-        try
-            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb)
-            success = sol.retcode == :Success || sol.retcode == :Terminated
-            retcode = sol.retcode
-        catch err
-            verbose && println(err)
-            if isa(err,InterruptException)
-                throw(err)
-            end
-        end
-    end
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
         verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode

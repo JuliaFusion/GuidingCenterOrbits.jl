@@ -35,7 +35,7 @@ export FullOrbitPath
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 
-using DiffResults, ForwardDiff
+using DiffResults, ForwardDiff, DiffEqDiffTools
 include("jacobian.jl")
 export eprz_to_eprt
 

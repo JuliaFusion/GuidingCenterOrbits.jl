@@ -3,7 +3,7 @@ function angle_condition(u,t,integ)
     p0 = ri[1] + ri[3]*im
     p1 = u[1] + u[3]*im
     d = p1/p0
-    imag(d)/real(d)
+    (t != 0.0)*imag(d)/real(d)
 end
 function angle_affect!(integ)
     stat = integ.f.f.stat
