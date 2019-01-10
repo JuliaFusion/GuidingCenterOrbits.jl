@@ -6,3 +6,4 @@ Interpolations
 StaticArrays
 ForwardDiff
 DiffResults
+DiffEqDiffTools
