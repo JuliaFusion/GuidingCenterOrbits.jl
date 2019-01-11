@@ -1,9 +1,14 @@
 function angle_condition(u,t,integ)
     ri = integ.sol.u[1]
     p0 = ri[1] + ri[3]*im
+    p0_s = ri[1] + (ri[3] - 1.0)*im
     p1 = u[1] + u[3]*im
+    p1_s = u[1] + (u[3] - 1.0)*im
     d = p1/p0
-    (t != 0.0)*imag(d)/real(d)
+    theta = angle(d)
+    d_s = p1_s/p0_s
+    theta_s = angle(d_s)
+    (t != 0.0)*(theta*theta_s + theta + theta_s)
 end
 function angle_affect!(integ)
     stat = integ.f.f.stat
@@ -13,7 +18,7 @@ function angle_affect!(integ)
     vi_rz = SVector(vi[1],vi[3])
     vc_rz = SVector(vc[1],vc[3])
     dprz = dot(vi_rz,vc_rz)/(norm(vi_rz)*norm(vc_rz))
-    if !stat.poloidal_complete && dprz > 0.99 && abs(integ.u[1]-ri[1]) < 0.01
+    if !stat.poloidal_complete && dprz > 0.95 && abs(integ.u[1]-ri[1]) < 0.01
         stat.poloidal_complete=true
         stat.tau_p = integ.t
         stat.tau_t = 2pi*stat.tau_p/abs(integ.u[2] - integ.sol.u[1][2])
