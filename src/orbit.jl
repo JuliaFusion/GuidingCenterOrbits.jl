@@ -85,7 +85,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<
 end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
-                   dt, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
+                   dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,verbose::Bool)
 
     stat = GCStatus(typeof(gcp.r))
@@ -103,14 +103,18 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     gc_ode = make_gc_ode(M,hc,stat)
     stat.vi = gc_ode(r0,false,0.0)
 
-    tspan = (zero(gcp.r),one(gcp.r)*tmax*1e-6)
+    tspan = (zero(gcp.r)*tmin*1e-6,one(gcp.r)*tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
     if wall != nothing
         wall_cb = wall_callback(wall)
     end
     if one_transit
-        cb = transit_callback
+        if calc_coordinate
+            cb = transit_callback
+        else
+            cb = CallbackSet(angle_cb)
+        end
         if wall != nothing
             cb = CallbackSet(cb.continuous_callbacks..., wall_cb, cb.discrete_callbacks...)
         end
@@ -229,20 +233,20 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmax=1000.0, integrator=Tsit5(),
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmin=0.0, tmax=1000.0, integrator=Tsit5(),
                    wall=nothing, interp_dt = 0.1, classify_orbit=true,one_transit=false, store_path=true,
-                   maxiter=3, adaptive=true, autodiff=true, verbose=false)
+                   maxiter=3, adaptive=true, autodiff=true, calc_coordinate=true, verbose=false)
 
-    path, stat = integrate(M, gcp, dt, tmax, integrator, wall, interp_dt,
+    path, stat = integrate(M, gcp, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, maxiter,
-                           adaptive, autodiff,verbose)
+                           adaptive, autodiff, calc_coordinate, verbose)
 
     return path, stat
 end
 
 function integrate(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c)
-    return integrate(M, gcp; kwargs...)
+    return integrate(M, gcp; calc_coordinate=false, kwargs...)
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
@@ -259,14 +263,10 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
-    #work around integrate 1ms to get away from rmax
-    gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-    path, stat = integrate(M, gcp; tmax=0.2,interp_dt=0.0)
-
-    gcp = GCParticle(path.energy[end],path.pitch[end],path.r[end],path.z[end],c.m,c.q)
     path, stat = integrate(M, gcp; one_transit=true, kwargs...)
+    rmax = maximum(path.r)
     if stat.class != :incomplete && stat.class != :lost
-        stat.rm > c.r && !isapprox(stat.rm,c.r,rtol=1e-4) && (stat.class = :degenerate)
+        rmax > c.r && !isapprox(rmax,c.r,rtol=1e-4) && (stat.class = :degenerate)
     else
         stat.tau_p=zero(stat.tau_p)
         stat.tau_t=zero(stat.tau_t)
