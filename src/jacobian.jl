@@ -6,7 +6,7 @@ function eprz_to_eprt(M, energy, pitch, r, z; m=H2_amu, q=1, auto_diff = true, k
         erred[1] = false
         islost[1] = false
         gcp = GCParticle(x[1], x[2], x[3], x[4], H2_amu*mass_u, q)
-        path, stat = integrate(M, gcp; store_path=false, classify_orbit=false, one_transit=true, kwargs...)
+        path, stat = integrate(M, gcp; autodiff=false,store_path=false, classify_orbit=false, one_transit=true, kwargs...)
         if stat.class == :lost
             islost[1] = true
             return x
@@ -52,7 +52,7 @@ end
 
 function get_orbit_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     ed = ForwardDiff.Dual(c.energy,(1.0,0.0,0.0,0.0))
-    pd = ForwardDiff.Dual(c.pitch, (0.0,1.0,0.0,0,0))
+    pd = ForwardDiff.Dual(c.pitch, (0.0,1.0,0.0,0.0))
     rd = ForwardDiff.Dual(c.r,     (0.0,0.0,1.0,0.0))
     td = ForwardDiff.Dual(0.0,     (0.0,0.0,0.0,1.0))
     zd = one(td)*c.z
@@ -62,7 +62,7 @@ function get_orbit_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs
     np = length(path)
     detJ = zeros(np)
     for i=1:np
-        detJ[i] = det(hcat((partials(p) for p in (path.energy[i],path.pitch[i],path.r[i],path.z[i]))...))
+        detJ[i] = abs(det(hcat((ForwardDiff.partials(p) for p in (path.energy[i],path.pitch[i],path.r[i],path.z[i]))...)))
     end
 
     r = ForwardDiff.value.(path.r)

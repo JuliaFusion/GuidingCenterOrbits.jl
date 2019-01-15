@@ -30,7 +30,10 @@ mutable struct GCStatus{T<:Number}
     errcode::Int
     ri::SArray{Tuple{3},T,1,3}
     vi::SArray{Tuple{3},T,1,3}
+    initial_dir::Int
     nr::Int
+    nphi::Int
+    naxis::Int
     rm::T
     zm::T
     pm::T
@@ -44,7 +47,7 @@ end
 
 function GCStatus(T=Float64)
     z = zero(T)
-    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,z,z,z,z,z,z,false,false,:incomplete)
+    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,0,0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<:AbstractOrbitCoordinate}
@@ -86,34 +89,37 @@ end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,verbose::Bool)
+                   one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,
+                   r_callback::Bool,verbose::Bool)
 
     stat = GCStatus(typeof(gcp.r))
 
     r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
-        @warn "Starting point outside boundary: " r0
+        verbose && @warn "Starting point outside boundary: " r0
         return OrbitPath(), stat
     end
 
     stat.ri = r0
-    stat.rm = r0[1]
-    stat.zm = r0[3]
     hc = HamiltonianCoordinate(M, gcp)
     gc_ode = make_gc_ode(M,hc,stat)
     stat.vi = gc_ode(r0,false,0.0)
+    stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3
 
-    tspan = (zero(gcp.r)*tmin*1e-6,one(gcp.r)*tmax*1e-6)
+    tspan = (one(gcp.r)*tmin*1e-6,one(gcp.r)*tmax*1e-6)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
 
     if wall != nothing
         wall_cb = wall_callback(wall)
     end
     if one_transit
-        if calc_coordinate
+        if r_callback
             cb = transit_callback
         else
-            cb = CallbackSet(angle_cb)
+            stat.nr = 2
+            stat.rm = r0[1]
+            stat.zm = r0[3]
+            cb = CallbackSet(phi_cb,maxis_cb,pol_cb,oob_cb)
         end
         if wall != nothing
             cb = CallbackSet(cb.continuous_callbacks..., wall_cb, cb.discrete_callbacks...)
@@ -129,10 +135,9 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     success = false
     retcode = :TotalFailure
     try
-        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                    callback=cb,adaptive=adaptive,save_everystep=store_path,force_dtmin=true)
-        success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
-                  (stat.class != :incomplete || !one_transit)
+        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+                    callback=cb,adaptive=adaptive,save_everystep=store_path)
+        success = sol.retcode == :Success || sol.retcode == :Terminated
         retcode = sol.retcode
     catch err
         verbose && println(err)
@@ -143,10 +148,9 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
 
     if !success && adaptive #Try non-adaptive
         try
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,adaptive=false,save_everystep=store_path,force_dtmin=true)
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
-                      (stat.class != :incomplete || !one_transit)
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+                        callback=cb,adaptive=false,save_everystep=store_path)
+            success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
             verbose && println(err)
@@ -159,10 +163,9 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     for i=1:maxiter #Try progressivly smaller time step with symplectic integrator
         success && break
         try
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,adaptive=false,save_everystep=store_path,force_dtmin=true)
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
-                      (stat.class != :incomplete || !one_transit)
+            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+                        callback=cb,save_everystep=store_path, force_dtmin=true)
+            success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
             verbose && println(err)
@@ -180,19 +183,31 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
     stat.errcode=0
 
+    if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
+        try
+            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
+                        callback=cb, force_dtmin=true)
+            success = sol.retcode == :Success || sol.retcode == :Terminated
+            retcode = sol.retcode
+        catch err
+            verbose && println(err)
+            if isa(err,InterruptException)
+                throw(err)
+            end
+        end
+    end
+
     if one_transit && stat.class != :lost && !stat.poloidal_complete
         verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
-        stat.errcode=1
     end
 
     if interp_dt > 0.0 && store_path
         n = floor(Int,sol.t[end]/(interp_dt*1e-6))
         if n > 10
-            sol = sol(range(0.0,stop=sol.t[end],length=n))
+            sol = sol(range(tmin,stop=sol.t[end],length=n))
         end
-    else
-        n = length(sol)
     end
+    n = length(sol)
 
     #Needed for classification
     r = getindex.(sol.u,1)
@@ -233,20 +248,20 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmin=0.0, tmax=1000.0, integrator=Tsit5(),
-                   wall=nothing, interp_dt = 0.1, classify_orbit=true,one_transit=false, store_path=true,
-                   maxiter=3, adaptive=true, autodiff=true, calc_coordinate=true, verbose=false)
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmin=0.0,tmax=1000.0,
+                   integrator=Tsit5(), wall=nothing, interp_dt = 0.1, classify_orbit=true,
+                   one_transit=false, store_path=true,maxiter=3,adaptive=true, autodiff=true,
+                   r_callback=true, verbose=false)
 
     path, stat = integrate(M, gcp, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, maxiter,
-                           adaptive, autodiff, calc_coordinate, verbose)
-
+                           adaptive, autodiff, r_callback, verbose)
     return path, stat
 end
 
 function integrate(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c)
-    return integrate(M, gcp; calc_coordinate=false, kwargs...)
+    return integrate(M, gcp; r_callback=false, kwargs...)
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
@@ -263,10 +278,14 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
-    path, stat = integrate(M, gcp; one_transit=true, kwargs...)
+    #work around integrate 1ms to get away from rmax
+    gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
+    path, stat = integrate(M, gcp; one_transit=true, r_callback=false, kwargs...)
     rmax = maximum(path.r)
     if stat.class != :incomplete && stat.class != :lost
-        rmax > c.r && !isapprox(rmax,c.r,rtol=1e-4) && (stat.class = :degenerate)
+        if rmax > c.r && !isapprox(rmax,c.r,rtol=1e-4)
+            stat.class = :degenerate
+        end
     else
         stat.tau_p=zero(stat.tau_p)
         stat.tau_t=zero(stat.tau_t)
@@ -277,7 +296,7 @@ end
 function Base.show(io::IO, orbit::Orbit)
     classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
                    :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
-                   :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ",:unknown=>"Unknown ")
+                   :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ")
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
     println(io, class_str*"Orbit:")
