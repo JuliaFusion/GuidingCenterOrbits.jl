@@ -106,14 +106,21 @@ end
 
 function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     o = get_orbit(M,c; kwargs...)
-    return get_jacobian(M, o.path, o.tau_p; kwargs...)
+    if o.class == :degenerate
+        error("Orbit is degenerate")
+    end
+    return _get_jacobian(M, o.path, o.tau_p; kwargs...)
 end
 
 function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
-    return get_jacobian(M, o.path, o.tau_p; kwargs...)
+    r0 = o.path.r[1]
+    if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
+        error("Orbit path does not start at r_max")
+    end
+    return _get_jacobian(M, o.path, o.tau_p; kwargs...)
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs...)
+function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs...)
     np = length(o)
     detJ = zeros(np)
     if np == 0 || tau_p == 0.0
