@@ -106,26 +106,30 @@ end
 
 function get_orbit_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     o = get_orbit(M,c; kwargs...)
-    return get_orbit_jacobian(M, o; kwargs...)
+    return get_orbit_jacobian(M, o.path, o.tau_p; kwargs...)
 end
 
 function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
-    c = o.coordinate
-    np = length(o.path)
+    return get_orbit_jacobian(M, o.path, o.tau_p; kwargs...)
+end
+
+function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs...)
+    np = length(o)
     detJ = zeros(np)
-    if np == 0 || o.class == :incomplete || o.class == :lost
+    if np == 0 || tau_p == 0.0
         return detJ
     end
 
     ## Do first half of orbit
-    ed = ForwardDiff.Dual(c.energy,(1.0,0.0,0.0,0.0))
-    pd = ForwardDiff.Dual(c.pitch, (0.0,1.0,0.0,0.0))
-    rd = ForwardDiff.Dual(c.r,     (0.0,0.0,1.0,0.0))
-    td = ForwardDiff.Dual(1e-30,   (0.0,0.0,0.0,1.0))
-    zd = one(td)*c.z
+    ed = ForwardDiff.Dual(o.energy[1],(1.0,0.0,0.0,0.0))
+    pd = ForwardDiff.Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
+    rd = ForwardDiff.Dual(o.r[1],     (0.0,0.0,1.0,0.0))
+    td = ForwardDiff.Dual(1e-30,      (0.0,0.0,0.0,1.0))
+    zd = one(td)*o.z[1]
     gcp = GCParticle(ed,pd,rd,zd)
-    path, stat = integrate(M, gcp; tmax=td*o.tau_p*1e6, interp_dt=0.0,
-                           one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+    path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
+                           one_transit=false, store_path=true,
+                           classify_orbit=false, kwargs...)
 
     ep = ForwardDiff.partials(path.energy[end])
     pp = ForwardDiff.partials(path.pitch[end])
@@ -134,16 +138,17 @@ function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
     detJ[1] = abs(det(hcat(ep,pp,rp,zp)))
     np1 = floor(Int,np/2)
     for i=2:np1
-        ed = ForwardDiff.Dual(o.path.energy[i-1],ep)
-        pd = ForwardDiff.Dual(o.path.pitch[i-1], pp)
-        rd = ForwardDiff.Dual(o.path.r[i-1],     rp)
-        zd = ForwardDiff.Dual(o.path.z[i-1],     zp)
+        ed = ForwardDiff.Dual(o.energy[i-1],ep)
+        pd = ForwardDiff.Dual(o.pitch[i-1], pp)
+        rd = ForwardDiff.Dual(o.r[i-1],     rp)
+        zd = ForwardDiff.Dual(o.z[i-1],     zp)
         gcp = GCParticle(ed,pd,rd,zd)
 
-        dt = o.path.dt[i-1]
+        dt = o.dt[i-1]
         dt = dt + 1e-30*iszero(dt)
         path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
-                               one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+                               one_transit=false, store_path=true,
+                               classify_orbit=false, kwargs...)
 
         ep = ForwardDiff.partials(path.energy[end])
         pp = ForwardDiff.partials(path.pitch[end])
@@ -153,14 +158,15 @@ function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
     end
 
     ## Do second half of orbit
-    ed = ForwardDiff.Dual(c.energy,(1.0,0.0,0.0,0.0))
-    pd = ForwardDiff.Dual(c.pitch, (0.0,1.0,0.0,0.0))
-    rd = ForwardDiff.Dual(c.r,     (0.0,0.0,1.0,0.0))
-    td = ForwardDiff.Dual(-1e-30,   (0.0,0.0,0.0,1.0))
-    zd = one(td)*c.z
+    ed = ForwardDiff.Dual(o.energy[1],(1.0,0.0,0.0,0.0))
+    pd = ForwardDiff.Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
+    rd = ForwardDiff.Dual(o.r[1],     (0.0,0.0,1.0,0.0))
+    td = ForwardDiff.Dual(-1e-30,     (0.0,0.0,0.0,1.0))
+    zd = one(td)*o.z[1]
     gcp = GCParticle(ed,pd,rd,zd)
-    path, stat = integrate(M, gcp; tmax=td*o.tau_p*1e6, interp_dt=0.0,
-                           one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+    path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
+                           one_transit=false, store_path=true,
+                           classify_orbit=false, kwargs...)
 
     ep = ForwardDiff.partials(path.energy[end])
     pp = ForwardDiff.partials(path.pitch[end])
@@ -168,16 +174,17 @@ function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
     zp = ForwardDiff.partials(path.z[end])
     detJ[np] = abs(det(hcat(ep,pp,rp,zp)))
     for i=(np-1):-1:(np1+1)
-        ed = ForwardDiff.Dual(o.path.energy[i+1],ep)
-        pd = ForwardDiff.Dual(o.path.pitch[i+1], pp)
-        rd = ForwardDiff.Dual(o.path.r[i+1],     rp)
-        zd = ForwardDiff.Dual(o.path.z[i+1],     zp)
+        ed = ForwardDiff.Dual(o.energy[i+1],ep)
+        pd = ForwardDiff.Dual(o.pitch[i+1], pp)
+        rd = ForwardDiff.Dual(o.r[i+1],     rp)
+        zd = ForwardDiff.Dual(o.z[i+1],     zp)
         gcp = GCParticle(ed,pd,rd,zd)
 
-        dt = o.path.dt[i]
+        dt = o.dt[i]
         dt = -(dt + 1e-30*iszero(dt))
         path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
-                               one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+                               one_transit=false, store_path=true,
+                               classify_orbit=false, kwargs...)
 
         ep = ForwardDiff.partials(path.energy[end])
         pp = ForwardDiff.partials(path.pitch[end])
