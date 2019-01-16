@@ -27,7 +27,7 @@ include("callbacks.jl")
 export standard_callback
 
 include("orbit.jl")
-export Orbit, OrbitPath, integrate, get_orbit
+export Orbit, OrbitPath, integrate, get_orbit, gc_velocity
 
 include("fullorbit.jl")
 export FullOrbitPath
@@ -37,6 +37,6 @@ export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 
 using DiffResults, ForwardDiff, DiffEqDiffTools
 include("jacobian.jl")
-export eprz_to_eprt
+export eprz_to_eprt, eprt_to_eprz, get_jacobian
 
 end

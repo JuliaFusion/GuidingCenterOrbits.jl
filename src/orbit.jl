@@ -32,8 +32,6 @@ mutable struct GCStatus{T<:Number}
     vi::SArray{Tuple{3},T,1,3}
     initial_dir::Int
     nr::Int
-    nphi::Int
-    naxis::Int
     rm::T
     zm::T
     pm::T
@@ -47,7 +45,7 @@ end
 
 function GCStatus(T=Float64)
     z = zero(T)
-    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,0,0,z,z,z,z,z,z,false,false,:incomplete)
+    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
 @inline function gc_velocity(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate, r, z)
@@ -88,14 +86,14 @@ function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<
     return ode
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,
                    r_callback::Bool,verbose::Bool)
 
     stat = GCStatus(typeof(gcp.r))
 
-    r0 = @SVector [gcp.r,zero(typeof(gcp.r)),gcp.z]
+    r0 = @SVector [gcp.r,one(gcp.r)*phi0,gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
         verbose && @warn "Starting point outside boundary: " r0
         return OrbitPath(), stat
@@ -120,7 +118,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
             stat.nr = 2
             stat.rm = r0[1]
             stat.zm = r0[3]
-            cb = CallbackSet(phi_cb,maxis_cb,pol_cb,oob_cb)
+            cb = CallbackSet(pol_cb,oob_cb)
         end
         if wall != nothing
             cb = CallbackSet(cb.continuous_callbacks..., wall_cb, cb.discrete_callbacks...)
@@ -249,12 +247,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; dt=0.1, tmin=0.0,tmax=1000.0,
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=0.1, tmin=0.0,tmax=1000.0,
                    integrator=Tsit5(), wall=nothing, interp_dt = 0.1, classify_orbit=true,
                    one_transit=false, store_path=true,maxiter=3,adaptive=true, autodiff=true,
                    r_callback=true, verbose=false)
 
-    path, stat = integrate(M, gcp, dt, tmin, tmax, integrator, wall, interp_dt,
+    path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, maxiter,
                            adaptive, autodiff, r_callback, verbose)
     return path, stat
@@ -279,8 +277,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
 end
 
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
-    #work around integrate 1ms to get away from rmax
-    gcp = GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
+    gcp = GCParticle(c)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=false, kwargs...)
     rmax = maximum(path.r)
     if stat.class != :incomplete && stat.class != :lost

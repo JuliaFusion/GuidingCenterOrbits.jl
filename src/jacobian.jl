@@ -104,16 +104,16 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
     return v, detJ
 end
 
-function get_orbit_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
+function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     o = get_orbit(M,c; kwargs...)
-    return get_orbit_jacobian(M, o.path, o.tau_p; kwargs...)
+    return get_jacobian(M, o.path, o.tau_p; kwargs...)
 end
 
-function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
-    return get_orbit_jacobian(M, o.path, o.tau_p; kwargs...)
+function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
+    return get_jacobian(M, o.path, o.tau_p; kwargs...)
 end
 
-function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs...)
+function get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs...)
     np = length(o)
     detJ = zeros(np)
     if np == 0 || tau_p == 0.0
