@@ -50,39 +50,40 @@ function GCStatus(T=Float64)
     return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,0,0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
+@inline function gc_velocity(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate, r, z)
+    F = fields(M,r,z)
+    psi = F.psi
+    g = F.g
+    B = F.B
+    E = F.E
+
+    babs = norm(B)
+    gradB = Interpolations.gradient(M.b,r,z)
+    gradB = SVector{3}(gradB[1],zero(gradB[1]),gradB[2])
+    Wperp = hc.mu*babs
+    vpara = -babs*(hc.p_phi - hc.q*e0*psi)/(hc.m*g)
+    Wpara = 0.5*hc.m*vpara^2
+
+    # ExB Drift
+    v_exb = cross(E, B)/babs^2
+
+    # GradB Drift
+    b1 = cross(B,gradB)/(babs^3)
+    v_grad = Wperp*b1/(hc.q*e0)
+
+    # Curvature Drift
+    v_curv = 2*Wpara*b1/(hc.q*e0)
+
+    # Guiding Center Velocity
+    v_gc = (vpara*B/babs + v_exb + v_grad + v_curv)
+    return SVector{3}(v_gc[1], v_gc[2]/r, v_gc[3])
+end
+
 function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<:AbstractOrbitCoordinate}
     oc = HamiltonianCoordinate(M, c)
     ode = function f(y,p::Bool,t)
         stat
-        r = y[1]
-        z = y[3]
-
-        F = fields(M,r,z)
-        psi = F.psi
-        g = F.g
-        B = F.B
-        E = F.E
-
-        babs = norm(B)
-        gradB = Interpolations.gradient(M.b,r,z)
-        gradB = SVector{3}(gradB[1],zero(gradB[1]),gradB[2])
-        Wperp = oc.mu*babs
-        vpara = -babs*(oc.p_phi - oc.q*e0*psi)/(oc.m*g)
-        Wpara = 0.5*oc.m*vpara^2
-
-        # ExB Drift
-        v_exb = cross(E, B)/babs^2
-
-        # GradB Drift
-        b1 = cross(B,gradB)/(babs^3)
-        v_grad = Wperp*b1/(oc.q*e0)
-
-        # Curvature Drift
-        v_curv = 2*Wpara*b1/(oc.q*e0)
-
-        # Guiding Center Velocity
-        v_gc = (vpara*B/babs + v_exb + v_grad + v_curv)
-        return SVector{3}(v_gc[1], v_gc[2]/r, v_gc[3])
+        v_gc = gc_velocity(M, oc, y[1], y[3])
     end
     return ode
 end
@@ -202,7 +203,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle,
     end
 
     if interp_dt > 0.0 && store_path
-        n = floor(Int,sol.t[end]/(interp_dt*1e-6))
+        n = floor(Int,abs(sol.t[end]/(interp_dt*1e-6)))
         if n > 10
             sol = sol(range(tmin,stop=sol.t[end],length=n))
         end

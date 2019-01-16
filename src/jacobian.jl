@@ -57,7 +57,12 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
         erred[1] = false
         islost[1] = false
         gcp = EPRCoordinate(M,x[1], x[2], x[3], amu=m, q=q)
-        path, stat = integrate(M, gcp; tmax = x[4]*tau_p, interp_dt=0, store_path=true, classify_orbit=false, one_transit=false, kwargs...)
+        t = (x[4] + 1e-30*iszero(x[4]))
+        if t > 0.5
+            t = -(1.0 - t)
+        end
+        path, stat = integrate(M, gcp; tmax = t*tau_p, interp_dt=0, store_path=true,
+                               classify_orbit=false, one_transit=false, integrator=BS3(), kwargs...)
         if stat.class == :lost
             islost[1] = true
             return x
@@ -99,37 +104,86 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
     return v, detJ
 end
 
-function get_orbit_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; tau_p=1.0, kwargs...)
+function get_orbit_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
+    o = get_orbit(M,c; kwargs...)
+    return get_orbit_jacobian(M, o; kwargs...)
+end
+
+function get_orbit_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
+    c = o.coordinate
+    np = length(o.path)
+    detJ = zeros(np)
+    if np == 0 || o.class == :incomplete || o.class == :lost
+        return detJ
+    end
+
+    ## Do first half of orbit
     ed = ForwardDiff.Dual(c.energy,(1.0,0.0,0.0,0.0))
     pd = ForwardDiff.Dual(c.pitch, (0.0,1.0,0.0,0.0))
     rd = ForwardDiff.Dual(c.r,     (0.0,0.0,1.0,0.0))
-    td = ForwardDiff.Dual(1.0,     (0.0,0.0,0.0,1.0))
+    td = ForwardDiff.Dual(1e-30,   (0.0,0.0,0.0,1.0))
     zd = one(td)*c.z
-    cdual = EPRCoordinate(M,ed,pd,rd)
-    path, stat = integrate(M, cdual; one_transit = true, kwargs...)
-    return path
-    np = length(path)
-    detJ = zeros(np)
-    for i=1:np
-        detJ[i] = abs(det(hcat((ForwardDiff.partials(p) for p in (path.energy[i],path.pitch[i],path.r[i],path.z[i]))...)))
+    gcp = GCParticle(ed,pd,rd,zd)
+    path, stat = integrate(M, gcp; tmax=td*o.tau_p*1e6, interp_dt=0.0,
+                           one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+
+    ep = ForwardDiff.partials(path.energy[end])
+    pp = ForwardDiff.partials(path.pitch[end])
+    rp = ForwardDiff.partials(path.r[end])
+    zp = ForwardDiff.partials(path.z[end])
+    detJ[1] = abs(det(hcat(ep,pp,rp,zp)))
+    np1 = floor(Int,np/2)
+    for i=2:np1
+        ed = ForwardDiff.Dual(o.path.energy[i-1],ep)
+        pd = ForwardDiff.Dual(o.path.pitch[i-1], pp)
+        rd = ForwardDiff.Dual(o.path.r[i-1],     rp)
+        zd = ForwardDiff.Dual(o.path.z[i-1],     zp)
+        gcp = GCParticle(ed,pd,rd,zd)
+
+        dt = o.path.dt[i-1]
+        dt = dt + 1e-30*iszero(dt)
+        path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
+                               one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+
+        ep = ForwardDiff.partials(path.energy[end])
+        pp = ForwardDiff.partials(path.pitch[end])
+        rp = ForwardDiff.partials(path.r[end])
+        zp = ForwardDiff.partials(path.z[end])
+        detJ[i] = abs(det(hcat(ep,pp,rp,zp)))
     end
 
-    r = ForwardDiff.value.(path.r)
-    z = ForwardDiff.value.(path.z)
-    phi = ForwardDiff.value.(path.phi)
-    energy = ForwardDiff.value.(path.energy)
-    pitch = ForwardDiff.value.(path.pitch)
-    dt = ForwardDiff.value.(path.dt)
-    tau_p = ForwardDiff.value(stat.tau_p)
-    tau_t = ForwardDiff.value(stat.tau_t)
+    ## Do second half of orbit
+    ed = ForwardDiff.Dual(c.energy,(1.0,0.0,0.0,0.0))
+    pd = ForwardDiff.Dual(c.pitch, (0.0,1.0,0.0,0.0))
+    rd = ForwardDiff.Dual(c.r,     (0.0,0.0,1.0,0.0))
+    td = ForwardDiff.Dual(-1e-30,   (0.0,0.0,0.0,1.0))
+    zd = one(td)*c.z
+    gcp = GCParticle(ed,pd,rd,zd)
+    path, stat = integrate(M, gcp; tmax=td*o.tau_p*1e6, interp_dt=0.0,
+                           one_transit=false, store_path=true, classify_orbit=false, kwargs...)
 
-    rmax = maximum(r)
-    if stat.class != :incomplete && stat.class != :lost
-        rmax > c.r && !isapprox(rmax,c.r,rtol=1e-4) && (stat.class = :degenerate)
-    else
-        tau_p=zero(tau_p)
-        tau_t=zero(tau_t)
+    ep = ForwardDiff.partials(path.energy[end])
+    pp = ForwardDiff.partials(path.pitch[end])
+    rp = ForwardDiff.partials(path.r[end])
+    zp = ForwardDiff.partials(path.z[end])
+    detJ[np] = abs(det(hcat(ep,pp,rp,zp)))
+    for i=(np-1):-1:(np1+1)
+        ed = ForwardDiff.Dual(o.path.energy[i+1],ep)
+        pd = ForwardDiff.Dual(o.path.pitch[i+1], pp)
+        rd = ForwardDiff.Dual(o.path.r[i+1],     rp)
+        zd = ForwardDiff.Dual(o.path.z[i+1],     zp)
+        gcp = GCParticle(ed,pd,rd,zd)
+
+        dt = o.path.dt[i]
+        dt = -(dt + 1e-30*iszero(dt))
+        path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
+                               one_transit=false, store_path=true, classify_orbit=false, kwargs...)
+
+        ep = ForwardDiff.partials(path.energy[end])
+        pp = ForwardDiff.partials(path.pitch[end])
+        rp = ForwardDiff.partials(path.r[end])
+        zp = ForwardDiff.partials(path.z[end])
+        detJ[i] = abs(det(hcat(ep,pp,rp,zp)))
     end
-    path = OrbitPath(r,z,phi,pitch,energy,dt)
-    return Orbit(c,stat.class,tau_p,tau_t,path), detJ
+    return detJ
 end
