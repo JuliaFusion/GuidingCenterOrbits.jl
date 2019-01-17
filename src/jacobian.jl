@@ -104,10 +104,40 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
     return v, detJ
 end
 
+function _get_shifted_jacobian(M, o::Orbit; kwargs...)
+    # Create spline of orbit path
+    t = range(0.0,stop=1.0,length=length(o.path))
+    A = hcat(o.path.energy,o.path.pitch,o.path.r,o.path.z)
+    itp = extrapolate(scale(interpolate(A,(BSpline(Cubic(Periodic(OnGrid()))), NoInterp())), t, 1:4), (Periodic(), Throw()))
+
+    # Find maximum r
+    res = optimize(x->-itp(x,3), 0.0, 1.0)
+    tm = Optim.minimizer(res)
+
+    # Create new orbit path
+    energy = itp.(t .+ tm, 1)
+    pitch = itp.(t .+ tm, 2)
+    r = itp.(t .+ tm, 3)
+    z = itp.(t .+ tm, 4)
+
+    dt = fill(step(t)*o.tau_p,length(o.path))
+    dt[end] = 0.0
+    opath = OrbitPath(r,z,r*0.0,pitch,energy,dt)
+
+    # Calculate jacobian
+    J = _get_jacobian(M, opath, o.tau_p; kwargs...)
+
+    # Shift jacobian
+    Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
+    Jshifted = Jitp.(t .- tm)
+
+    return Jshifted
+end
+
 function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     o = get_orbit(M,c; kwargs...)
     if o.class == :degenerate
-        error("Orbit is degenerate")
+        return _get_shifted_jacobian(M, o; kwargs...)
     end
     return _get_jacobian(M, o.path, o.tau_p; kwargs...)
 end
@@ -115,7 +145,7 @@ end
 function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
     r0 = o.path.r[1]
     if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
-        error("Orbit path does not start at r_max")
+        return _get_shifted_jacobian(M, o; kwargs...)
     end
     return _get_jacobian(M, o.path, o.tau_p; kwargs...)
 end
