@@ -26,6 +26,8 @@ function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where {T}
     return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
 end
 
+Base.length(o::Orbit) = length(o.path.r)
+
 mutable struct GCStatus{T<:Number}
     errcode::Int
     ri::SArray{Tuple{3},T,1,3}
