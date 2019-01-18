@@ -122,7 +122,7 @@ function _get_shifted_jacobian(M, o::Orbit; kwargs...)
 
     dt = fill(step(t)*o.tau_p,length(o.path))
     dt[end] = 0.0
-    opath = OrbitPath(r,z,r*0.0,pitch,energy,dt)
+    opath = OrbitPath(energy,pitch,r,z,r*0.0,dt)
 
     # Calculate jacobian
     J = _get_jacobian(M, opath, o.tau_p; kwargs...)

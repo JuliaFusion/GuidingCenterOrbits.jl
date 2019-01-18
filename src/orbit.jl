@@ -1,9 +1,9 @@
 struct OrbitPath{T}
+    energy::Vector{T}
+    pitch::Vector{T}
     r::Vector{T}
     z::Vector{T}
     phi::Vector{T}
-    pitch::Vector{T}
-    energy::Vector{T}
     dt::Vector{T}
 #    dl::Vector{T}
 end
@@ -236,7 +236,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 #        dl[i] = v*dt[i]
 #    end
 
-    path = OrbitPath(r,z,phi,pitch,energy,dt)
+    path = OrbitPath(energy,pitch,r,z,phi,dt)
 
     if stat.class == :lost
         stat.tau_p = zero(stat.tau_p)
