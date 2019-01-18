@@ -20,8 +20,8 @@ const mu0 = 4*pi*1e-7
 const H2_amu = 2.0141017778
 
 include("coordinates.jl")
-export EPRCoordinate, HamiltonianCoordinate, normalized_hamiltonian
-export Particle, GCParticle, EPRParticle
+export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate, normalized_hamiltonian
+export AbstractParticle, Particle, GCParticle, EPRParticle
 
 include("callbacks.jl")
 export standard_callback
