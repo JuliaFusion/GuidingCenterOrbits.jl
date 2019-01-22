@@ -106,7 +106,7 @@ end
 
 function _get_shifted_jacobian(M, o::Orbit; kwargs...)
     # Create spline of orbit path
-    t = range(0.0,stop=1.0,length=length(o.path))
+    t = range(0.0,1.0,length=length(o.path))
     A = hcat(o.path.energy,o.path.pitch,o.path.r,o.path.z)
     itp = extrapolate(scale(interpolate(A,(BSpline(Cubic(Periodic(OnGrid()))), NoInterp())), t, 1:4), (Periodic(), Throw()))
 

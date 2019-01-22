@@ -205,7 +205,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     if interp_dt > 0.0 && store_path
         n = floor(Int,abs(sol.t[end]/(interp_dt*1e-6)))
         if n > 10
-            sol = sol(range(tmin,stop=sol.t[end],length=n))
+            sol = sol(range(tmin,sol.t[end],length=n))
         end
     end
     n = length(sol)
