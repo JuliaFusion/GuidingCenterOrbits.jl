@@ -126,7 +126,7 @@ function _get_shifted_jacobian(M, o::Orbit; kwargs...)
 
     # Shift jacobian
     Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
-    Jshifted = max(Jitp.(t .- tm),0.0)
+    Jshifted = max.(Jitp.(t .- tm),0.0)
 
     return Jshifted
 end
