@@ -110,11 +110,8 @@ function _get_shifted_jacobian(M, o::Orbit; kwargs...)
     A = hcat(o.path.energy,o.path.pitch,o.path.r,o.path.z)
     itp = extrapolate(scale(interpolate(A,(BSpline(Cubic(Periodic(OnGrid()))), NoInterp())), t, 1:4), (Periodic(), Throw()))
 
-    # Find maximum r
-    res = optimize(x->-itp(x,3), 0.0, 1.0)
-    tm = Optim.minimizer(res)
-
     # Create new orbit path
+    tm = o.coordinate.t
     energy = itp.(t .+ tm, 1)
     pitch = itp.(t .+ tm, 2)
     r = itp.(t .+ tm, 3)
@@ -129,7 +126,7 @@ function _get_shifted_jacobian(M, o::Orbit; kwargs...)
 
     # Shift jacobian
     Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
-    Jshifted = Jitp.(t .- tm)
+    Jshifted = max(Jitp.(t .- tm),0.0)
 
     return Jshifted
 end
@@ -158,27 +155,27 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs..
     end
 
     ## Do first half of orbit
-    ed = ForwardDiff.Dual(o.energy[1],(1.0,0.0,0.0,0.0))
-    pd = ForwardDiff.Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
-    rd = ForwardDiff.Dual(o.r[1],     (0.0,0.0,1.0,0.0))
-    td = ForwardDiff.Dual(1e-30,      (0.0,0.0,0.0,1.0))
+    ed = Dual(o.energy[1],(1.0,0.0,0.0,0.0))
+    pd = Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
+    rd = Dual(o.r[1],     (0.0,0.0,1.0,0.0))
+    td = Dual(1e-30,      (0.0,0.0,0.0,1.0))
     zd = one(td)*o.z[1]
     gcp = GCParticle(ed,pd,rd,zd)
     path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
                            one_transit=false, store_path=true,
                            classify_orbit=false, kwargs...)
 
-    ep = ForwardDiff.partials(path.energy[end])
-    pp = ForwardDiff.partials(path.pitch[end])
-    rp = ForwardDiff.partials(path.r[end])
-    zp = ForwardDiff.partials(path.z[end])
-    detJ[1] = abs(det(hcat(ep,pp,rp,zp)))
+    ep = partials(path.energy[end])
+    pp = partials(path.pitch[end])
+    rp = partials(path.r[end])
+    zp = partials(path.z[end])
+    detJ[1] = max(abs(det(hcat(ep,pp,rp,zp))),0.0)
     np1 = floor(Int,np/2)
     for i=2:np1
-        ed = ForwardDiff.Dual(o.energy[i-1],ep)
-        pd = ForwardDiff.Dual(o.pitch[i-1], pp)
-        rd = ForwardDiff.Dual(o.r[i-1],     rp)
-        zd = ForwardDiff.Dual(o.z[i-1],     zp)
+        ed = Dual(o.energy[i-1],ep)
+        pd = Dual(o.pitch[i-1], pp)
+        rd = Dual(o.r[i-1],     rp)
+        zd = Dual(o.z[i-1],     zp)
         gcp = GCParticle(ed,pd,rd,zd)
 
         dt = o.dt[i-1]
@@ -187,34 +184,34 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs..
                                one_transit=false, store_path=true,
                                classify_orbit=false, kwargs...)
 
-        ep = ForwardDiff.partials(path.energy[end])
-        pp = ForwardDiff.partials(path.pitch[end])
-        rp = ForwardDiff.partials(path.r[end])
-        zp = ForwardDiff.partials(path.z[end])
-        detJ[i] = abs(det(hcat(ep,pp,rp,zp)))
+        ep = partials(path.energy[end])
+        pp = partials(path.pitch[end])
+        rp = partials(path.r[end])
+        zp = partials(path.z[end])
+        detJ[i] = max(abs(det(hcat(ep,pp,rp,zp))),0.0)
     end
 
     ## Do second half of orbit
-    ed = ForwardDiff.Dual(o.energy[1],(1.0,0.0,0.0,0.0))
-    pd = ForwardDiff.Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
-    rd = ForwardDiff.Dual(o.r[1],     (0.0,0.0,1.0,0.0))
-    td = ForwardDiff.Dual(-1e-30,     (0.0,0.0,0.0,1.0))
+    ed = Dual(o.energy[1],(1.0,0.0,0.0,0.0))
+    pd = Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
+    rd = Dual(o.r[1],     (0.0,0.0,1.0,0.0))
+    td = Dual(-1e-30,     (0.0,0.0,0.0,1.0))
     zd = one(td)*o.z[1]
     gcp = GCParticle(ed,pd,rd,zd)
     path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
                            one_transit=false, store_path=true,
                            classify_orbit=false, kwargs...)
 
-    ep = ForwardDiff.partials(path.energy[end])
-    pp = ForwardDiff.partials(path.pitch[end])
-    rp = ForwardDiff.partials(path.r[end])
-    zp = ForwardDiff.partials(path.z[end])
-    detJ[np] = abs(det(hcat(ep,pp,rp,zp)))
+    ep = partials(path.energy[end])
+    pp = partials(path.pitch[end])
+    rp = partials(path.r[end])
+    zp = partials(path.z[end])
+    detJ[np] = max(abs(det(hcat(ep,pp,rp,zp))),0.0)
     for i=(np-1):-1:(np1+1)
-        ed = ForwardDiff.Dual(o.energy[i+1],ep)
-        pd = ForwardDiff.Dual(o.pitch[i+1], pp)
-        rd = ForwardDiff.Dual(o.r[i+1],     rp)
-        zd = ForwardDiff.Dual(o.z[i+1],     zp)
+        ed = Dual(o.energy[i+1],ep)
+        pd = Dual(o.pitch[i+1], pp)
+        rd = Dual(o.r[i+1],     rp)
+        zd = Dual(o.z[i+1],     zp)
         gcp = GCParticle(ed,pd,rd,zd)
 
         dt = o.dt[i]
@@ -223,11 +220,35 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p; kwargs..
                                one_transit=false, store_path=true,
                                classify_orbit=false, kwargs...)
 
-        ep = ForwardDiff.partials(path.energy[end])
-        pp = ForwardDiff.partials(path.pitch[end])
-        rp = ForwardDiff.partials(path.r[end])
-        zp = ForwardDiff.partials(path.z[end])
-        detJ[i] = abs(det(hcat(ep,pp,rp,zp)))
+        ep = partials(path.energy[end])
+        pp = partials(path.pitch[end])
+        rp = partials(path.r[end])
+        zp = partials(path.z[end])
+        detJ[i] = max(abs(det(hcat(ep,pp,rp,zp))),0.0)
     end
     return detJ
+end
+
+function transform(M::AxisymmetricEquilibrium, o::Orbit, ::Type{EPRParticle}; kwargs...)
+    J = _get_jacobian(M, o.path, o.tau_p; kwargs...)[1]
+    return EPRParticle(o.coordinate), J
+end
+
+function transform(M::AxisymmetricEquilibrium, gcp::GCParticle, ::Type{EPRParticle}; kwargs...)
+    o = get_orbit(M, gcp; kwargs...)
+    return transform(M, o; kwargs...)
+end
+
+function transform(M::AxisymmetricEquilibrium, c::EPRCoordinate, ::Type{HamiltonianCoordinate})
+    KE_d = Dual(c.energy, (1.0, 0.0, 0.0))
+    p_d =  Dual(c.pitch,  (0.0, 1.0, 0.0))
+    r_d =  Dual(c.r,      (0.0, 0.0, 1.0))
+    c_d = EPRCoordinate(KE_d, p_d, r_d, one(r_d)*c.z, c.m, c.q)
+
+    hc_d = HamiltonianCoordinate(M, c_d)
+
+    hc = HamiltonianCoordinate(value(hc_d.energy), value(hc_d.mu), value(hc_d.p_phi), c.m, c.q)
+    J = abs(det(hcat(partials(hc_d.energy), partials(hc_d.mu), partials(hc_d.p_phi))))
+
+    return hc, J
 end

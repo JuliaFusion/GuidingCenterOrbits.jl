@@ -35,8 +35,11 @@ export FullOrbitPath
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 
-using DiffResults, ForwardDiff, DiffEqDiffTools
+using ForwardDiff
+using ForwardDiff: Dual, partials, value
+using DiffResults, DiffEqDiffTools
+
 include("jacobian.jl")
-export eprz_to_eprt, eprt_to_eprz, get_jacobian
+export eprz_to_eprt, eprt_to_eprz, get_jacobian, transform
 
 end

@@ -5,17 +5,18 @@ struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     pitch::T
     r::T
     z::T
+    t::T
     m::Float64
     q::Int
 end
 
 function EPRCoordinate(T=Float64)
     z = zero(T)
-    return EPRCoordinate(z, z, z, z, 0.0, 0)
+    return EPRCoordinate(z, z, z, z, z, 0.0, 0)
 end
 
-function EPRCoordinate(energy, pitch, r, z; amu=H2_amu, q = 1)
-    return EPRCoordinate(energy, pitch, r, z, amu*mass_u, q)
+function EPRCoordinate(energy, pitch, r, z; t = zero(z), amu=H2_amu, q = 1)
+    return EPRCoordinate(energy, pitch, r, z, t, amu*mass_u, q)
 end
 
 function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu, q=1, dz=0.2)
@@ -25,7 +26,7 @@ function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu
     res = optimize(x->M.psi_rz(R,x), zmin, zmax)
     Z = Optim.minimizer(res)
     (Z == zmax || Z == zmin) && error(@sprintf("Unable to find starting Z value with dz = %.2f. Increase dz",dz))
-    return EPRCoordinate(energy, pitch, R, Z, amu*mass_u, q)
+    return EPRCoordinate(energy, pitch, R, Z, zero(Z), amu*mass_u, q)
 end
 
 function Base.show(io::IO, c::EPRCoordinate)
@@ -156,7 +157,7 @@ struct EPRParticle{T} <: AbstractParticle{T}
     r_c::T
     z_c::T
     t::T
-    m::T
+    m::Float64
     q::Int
 end
 
@@ -164,6 +165,6 @@ function EPRParticle(energy, pitch, r, z, t; amu=H2_amu, q=1)
     EPRParticle(energy, pitch, r, z, t, mass_u*amu, q)
 end
 
-function EPRParticle(oc::EPRCoordinate,t)
+function EPRParticle(oc::EPRCoordinate; t=oc.t)
     EPRParticle(oc.energy,oc.pitch,oc.r,oc.z,t,oc.m,oc.q)
 end

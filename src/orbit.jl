@@ -273,7 +273,8 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
     end
     hc = HamiltonianCoordinate(M,gcp)
     KE = get_kinetic_energy(M,hc,stat.rm,stat.zm)
-    c = EPRCoordinate(KE,stat.pm,stat.rm,stat.zm)
+    tm = (stat.tau_p - stat.tm)/stat.tau_p
+    c = EPRCoordinate(KE,stat.pm,stat.rm,stat.zm,t=tm)
 
     return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
 end
