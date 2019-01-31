@@ -243,7 +243,7 @@ function transform(M::AxisymmetricEquilibrium, c::EPRCoordinate, ::Type{Hamilton
     KE_d = Dual(c.energy, (1.0, 0.0, 0.0))
     p_d =  Dual(c.pitch,  (0.0, 1.0, 0.0))
     r_d =  Dual(c.r,      (0.0, 0.0, 1.0))
-    c_d = EPRCoordinate(KE_d, p_d, r_d, one(r_d)*c.z, c.m, c.q)
+    c_d = EPRCoordinate(KE_d, p_d, r_d, one(r_d)*c.z, one(r_d)*c.t, c.m, c.q)
 
     hc_d = HamiltonianCoordinate(M, c_d)
 
