@@ -112,10 +112,10 @@ function _get_shifted_jacobian(M, o::Orbit; kwargs...)
 
     # Create new orbit path
     tm = o.coordinate.t
-    energy = itp.(t .+ tm, 1)
-    pitch = itp.(t .+ tm, 2)
-    r = itp.(t .+ tm, 3)
-    z = itp.(t .+ tm, 4)
+    energy = itp.(t .- tm, 1)
+    pitch = itp.(t .- tm, 2)
+    r = itp.(t .- tm, 3)
+    z = itp.(t .- tm, 4)
 
     dt = fill(step(t)*o.tau_p,length(o.path))
     dt[end] = 0.0
@@ -126,7 +126,7 @@ function _get_shifted_jacobian(M, o::Orbit; kwargs...)
 
     # Shift jacobian
     Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
-    Jshifted = max.(Jitp.(t .- tm),0.0)
+    Jshifted = max.(Jitp.(t .+ tm),0.0)
 
     return Jshifted
 end
