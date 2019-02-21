@@ -7,7 +7,7 @@ using Printf
 using LinearAlgebra
 
 using Equilibrium
-using DifferentialEquations
+using OrdinaryDiffEq
 using Optim
 using Base.Iterators
 using Interpolations
