@@ -137,7 +137,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     retcode = :TotalFailure
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
-                    callback=cb,adaptive=adaptive,save_everystep=store_path)
+                    callback=cb,adaptive=adaptive)
         success = sol.retcode == :Success || sol.retcode == :Terminated
         retcode = sol.retcode
     catch err
@@ -150,7 +150,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     if !success && adaptive #Try non-adaptive
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
-                        callback=cb,adaptive=false,save_everystep=store_path)
+                        callback=cb,adaptive=false)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
@@ -165,7 +165,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         success && break
         try
             sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb,save_everystep=store_path, force_dtmin=true)
+                        callback=cb, force_dtmin=true)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
@@ -202,7 +202,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
     end
 
-    if interp_dt > 0.0 && store_path
+    if interp_dt > 0.0
         n = floor(Int,abs(sol.t[end]/(interp_dt*1e-6)))
         if n > 10
             sol = sol(range(tmin,sol.t[end],length=n))
@@ -215,7 +215,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     z = getindex.(sol.u,3)
     pitch = get_pitch(M, hc, r, z)
 
-    if stat.class == :unknown && store_path && classify_orbit && one_transit
+    if stat.class == :unknown && classify_orbit && one_transit
         stat.class = classify(r,z,pitch,M.axis)
     end
 
