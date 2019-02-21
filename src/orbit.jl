@@ -282,7 +282,7 @@ end
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=false, kwargs...)
-    rmax = maximum(path.r)
+    rmax = stat.rm
     if stat.class != :incomplete && stat.class != :lost
         if rmax > c.r && !isapprox(rmax,c.r,rtol=1e-4)
             stat.class = :degenerate
