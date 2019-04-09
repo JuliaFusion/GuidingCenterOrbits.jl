@@ -88,7 +88,11 @@ function classify(r, z, pitch, axis; n=length(r))
                 class = :ctr_passing
             end
         else
-            class = :potato
+            if sign_p[argmax(r)] >= 0.0
+                class = :potato
+            else
+                class = :ctr_passing #really ctr_potato
+            end
         end
     else
         if all(sign_p .== sign_p[1])
