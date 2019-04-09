@@ -215,6 +215,15 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     z = getindex.(sol.u,3)
     pitch = get_pitch(M, hc, r, z)
 
+    if !r_callback
+        ind = argmax(r)
+        if r[ind] > stat.rm
+            stat.rm = r[ind]
+            stat.zm = z[ind]
+            stat.pm = pitch[ind]
+        end
+    end
+
     if stat.class == :unknown && classify_orbit && one_transit
         stat.class = classify(r,z,pitch,M.axis)
     end
@@ -282,7 +291,7 @@ end
 function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=false, kwargs...)
-    rmax = maximum(path.r)
+    rmax = stat.rm
     if stat.class != :incomplete && stat.class != :lost
         if rmax > c.r && !isapprox(rmax,c.r,rtol=1e-4)
             stat.class = :degenerate
