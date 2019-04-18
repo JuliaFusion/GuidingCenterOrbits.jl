@@ -140,6 +140,7 @@ function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
 end
 
 function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; kwargs...)
+    length(o.path) == 0 && return zeros(length(o.path))
     r0 = o.path.r[1]
     if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
         return _get_shifted_jacobian(M, o; kwargs...)
