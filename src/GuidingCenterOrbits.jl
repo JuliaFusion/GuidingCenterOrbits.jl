@@ -14,11 +14,18 @@ using Interpolations
 using StaticArrays
 #using Plots
 
-const mass_u = 1.6605402e-27 # kg
 const e0 = 1.60217733e-19 # Coulombs / Joules
 const mu0 = 4*pi*1e-7 # N/A^2
-const H2_amu = 2.0141017778 # amu
 const c0 = 2.99792458e8 # m/s
+
+const mass_u = 1.6605402e-27 # kg
+const e_amu = 5.48579909070e-4 # amu
+const H1_amu = 1.007276466879 # amu
+const H2_amu = 2.0141017778 # amu
+const H3_amu = 3.01550071632 # amu
+const He3_amu = 3.01602931914 # amu
+const B5_amu = 10.81 # amu
+const C6_amu = 12.011 # amu
 
 include("coordinates.jl")
 export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate, normalized_hamiltonian

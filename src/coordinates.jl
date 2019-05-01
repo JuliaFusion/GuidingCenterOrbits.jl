@@ -10,9 +10,9 @@ struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     q::Int
 end
 
-function EPRCoordinate(T=Float64)
+function EPRCoordinate(T=Float64; amu=H2_amu, q = 1)
     z = zero(T)
-    return EPRCoordinate(z, z, z, z, z, 0.0, 0)
+    return EPRCoordinate(z, z, z, z, z, amu*mass_u, q)
 end
 
 function EPRCoordinate(energy, pitch, r, z; t = zero(z), amu=H2_amu, q = 1)
@@ -44,9 +44,9 @@ struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     q::Int
 end
 
-function HamiltonianCoordinate(T=Float64)
+function HamiltonianCoordinate(T=Float64; amu=H2_amu, q=1)
     z = zero(T)
-    return HamiltonianCoordinate(z, z, z, 0.0, 0)
+    return HamiltonianCoordinate(z, z, z, amu*mass_u, q)
 end
 
 function HamiltonianCoordinate(energy, mu, p_phi; amu=H2_amu, q=1)
