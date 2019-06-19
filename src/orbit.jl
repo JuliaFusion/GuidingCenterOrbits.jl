@@ -64,6 +64,9 @@ end
     vpara = -babs*(hc.p_phi - hc.q*e0*psi)/(hc.m*g)
     Wpara = 0.5*hc.m*vpara^2
 
+    # Velocity along field line
+    v_b = vpara*B/babs
+
     # ExB Drift
     v_exb = cross(E, B)/babs^2
 
@@ -75,7 +78,7 @@ end
     v_curv = 2*Wpara*b1/(hc.q*e0)
 
     # Guiding Center Velocity
-    v_gc = (vpara*B/babs + v_exb + v_grad + v_curv)
+    v_gc = v_b + (v_exb + v_grad + v_curv)
     return SVector{3}(v_gc[1], v_gc[2]/r, v_gc[3])
 end
 
