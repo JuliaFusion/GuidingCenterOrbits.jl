@@ -30,6 +30,7 @@ const C6_amu = 12.011 # amu
 include("coordinates.jl")
 export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate, normalized_hamiltonian
 export AbstractParticle, Particle, GCParticle, EPRParticle
+export Electron, Proton, Deuteron, Triton, Alpha
 
 include("callbacks.jl")
 export standard_callback

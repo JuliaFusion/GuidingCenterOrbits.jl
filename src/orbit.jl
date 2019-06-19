@@ -30,8 +30,8 @@ Base.length(o::Orbit) = length(o.path.r)
 
 mutable struct GCStatus{T<:Number}
     errcode::Int
-    ri::SArray{Tuple{3},T,1,3}
-    vi::SArray{Tuple{3},T,1,3}
+    ri::SArray{Tuple{5},T,1,5}
+    vi::SArray{Tuple{5},T,1,5}
     initial_dir::Int
     nr::Int
     rm::T
@@ -47,46 +47,43 @@ end
 
 function GCStatus(T=Float64)
     z = zero(T)
-    return GCStatus(1,SVector{3}(z,z,z),SVector{3}(z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete)
+    return GCStatus(1,SVector{5}(z,z,z,z,z),SVector{5}(z,z,z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
-@inline function gc_velocity(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate, r, z)
+@inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu)
+    # Phys. Plasmas 14, 092107 (2007); https://doi.org/10.1063/1.2773702
+    # NOTE: Equations 13 and 15 are incorrect. Remove c factor to correct
+    q = gcp.q
+    m = gcp.m
+    mc2 = m*c0*c0
+
     F = fields(M,r,z)
-    psi = F.psi
-    g = F.g
-    B = F.B
-    E = F.E
+    Babs = norm(F.B)
+    bhat = F.B/Babs
 
-    babs = norm(B)
-    gradB = Interpolations.gradient(M.b,r,z)
-    gradB = SVector{3}(gradB[1],zero(gradB[1]),gradB[2])
-    Wperp = hc.mu*babs
-    vpara = -babs*(hc.p_phi - hc.q*e0*psi)/(hc.m*g)
-    Wpara = 0.5*hc.m*vpara^2
+    gB = gradB(M,r,z)
+    cB = curlB(M,r,z) #Jfield(M,r,z)*4pi*10^-7
+    bhatXgradB = cross(bhat,gB)
+    cbhat = (cB + bhatXgradB)/Babs
 
-    # Velocity along field line
-    v_b = vpara*B/babs
+    Bstar = F.B + (p_para/q)*cbhat
+    Bstar_para = dot(Bstar,bhat)
 
-    # ExB Drift
-    v_exb = cross(E, B)/babs^2
+    gamma = sqrt(1 + (2*mu*Babs)/mc2 + (p_para/(m*c0))^2)
+    gradg = (mu/(gamma*mc2))*gB
+    Estar = F.E - mc2*gradg/q
 
-    # GradB Drift
-    b1 = cross(B,gradB)/(babs^3)
-    v_grad = Wperp*b1/(hc.q*e0)
+    Xdot = ((p_para/(gamma*m))*Bstar + cross(Estar,bhat))/Bstar_para
 
-    # Curvature Drift
-    v_curv = 2*Wpara*b1/(hc.q*e0)
+    p_para_dot = dot(q*Estar,Bstar/Bstar_para)
 
-    # Guiding Center Velocity
-    v_gc = v_b + (v_exb + v_grad + v_curv)
-    return SVector{3}(v_gc[1], v_gc[2]/r, v_gc[3])
+    return SVector{5}(Xdot[1], Xdot[2]/r, Xdot[3], p_para_dot, zero(p_para_dot))
 end
 
-function make_gc_ode(M::AxisymmetricEquilibrium, c::T, stat::GCStatus) where {T<:AbstractOrbitCoordinate}
-    oc = HamiltonianCoordinate(M, c)
+function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus)
     ode = function f(y,p::Bool,t)
         stat
-        v_gc = gc_velocity(M, oc, y[1], y[3])
+        v_gc = gc_velocity(M, gcp, y[1], y[3], y[4], y[5])
     end
     return ode
 end
@@ -98,15 +95,22 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     stat = GCStatus(typeof(gcp.r))
 
-    r0 = @SVector [gcp.r,one(gcp.r)*phi0,gcp.z]
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
-        verbose && @warn "Starting point outside boundary: " r0
+        verbose && @warn "Starting point outside boundary: " r0 = (gcp.r, gcp.z)
         return OrbitPath(), stat
     end
 
+    # Initial Conditions
+    mc2 = gcp.m*c0^2
+    p0 = sqrt(((gcp.energy + mc2)^2 - mc2^2)/(c0*c0))
+    p_para0 = p0*gcp.pitch*M.sigma
+    p_perp0 = p0*sqrt(1-gcp.pitch^2)
+    mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z))
+    r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0)
+
     stat.ri = r0
-    hc = HamiltonianCoordinate(M, gcp)
-    gc_ode = make_gc_ode(M,hc,stat)
+
+    gc_ode = make_gc_ode(M,gcp,stat)
     stat.vi = gc_ode(r0,false,0.0)
     stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3
 
@@ -215,8 +219,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     #Needed for classification
     r = getindex.(sol.u,1)
+    phi = getindex.(sol.u,2)
     z = getindex.(sol.u,3)
-    pitch = get_pitch(M, hc, r, z)
+    ppara = getindex.(sol.u,4)
+    mu = getindex.(sol.u,5)
+    pitch = get_pitch.(Ref(M), Ref(gcp), ppara, mu, r, z)
 
     if !r_callback
         ind = argmax(r)
@@ -236,9 +243,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     end
 
     # Get everything else in path
-    phi = getindex.(sol.u,2)
     dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
-    energy = get_kinetic_energy(M, hc, r, z)
+    energy = get_kinetic_energy.(Ref(M), Ref(gcp), ppara, mu, r, z)
 
     # P_rz
 #    prz = zeros(n)

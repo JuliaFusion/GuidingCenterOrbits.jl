@@ -147,6 +147,26 @@ function GCParticle(c::EPRCoordinate)
     GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
 end
 
+function Electron(energy,pitch,r,z)
+    GCParticle(energy,pitch,r,z,e_amu*mass_u,-1)
+end
+
+function Proton(energy,pitch,r,z)
+    GCParticle(energy,pitch,r,z,H1_amu*mass_u,1)
+end
+
+function Deuteron(energy,pitch,r,z)
+    GCParticle(energy,pitch,r,z,H2_amu*mass_u,1)
+end
+
+function Triton(energy,pitch,r,z)
+    GCParticle(energy,pitch,r,z,H3_amu*mass_u,1)
+end
+
+function Alpha(energy,pitch,r,z)
+    GCParticle(energy,pitch,r,z,He3_amu*mass_u,2)
+end
+
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::GCParticle)
     HamiltonianCoordinate(M,c.energy,c.pitch,c.r,c.z,c.m,c.q)
 end

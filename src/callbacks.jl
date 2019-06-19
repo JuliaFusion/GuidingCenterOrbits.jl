@@ -11,6 +11,9 @@ function r_affect!(integ)
             stat.rm = integ.u[1]
             stat.zm = integ.u[3]
             stat.tm = integ.t
+            M = integ.f.f.M
+            gcp = integ.f.f.gcp
+            stat.pm = get_pitch(M,gcp,integ.u[4],integ.u[5],integ.u[1],integ.u[3])
         end
     else
         integ.p && terminate!(integ)
@@ -41,9 +44,6 @@ function poloidal_affect!(integ)
         stat.poloidal_complete=true
         stat.tau_p = integ.t
         stat.tau_t = 2pi*stat.tau_p/abs(integ.u[2] - integ.sol.u[1][2])
-        M = integ.f.f.M
-        oc = integ.f.f.oc
-        stat.pm = get_pitch(M,oc,stat.rm,stat.zm)
         stat.class = :unknown
         integ.p && terminate!(integ)
     end

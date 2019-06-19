@@ -13,6 +13,14 @@ function get_pitch(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z
     return clamp(pitch,-1.0,1.0)
 end
 
+function get_pitch(M::AxisymmetricEquilibrium, gcp::GCParticle, p_para::T, mu::T, r::T, z::T) where {T<:Number}
+    Babs = M.b(r,z)
+    m = gcp.m
+    p = sqrt(p_para^2 + 2*m*Babs*mu)
+    pitch = M.sigma*p_para/p
+    return pitch
+end
+
 function get_pitch(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {T<:AbstractOrbitCoordinate, S<:Number}
     n = length(r)
     pitch = zeros(S,n)
@@ -44,6 +52,14 @@ end
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Number}
     psi = M.psi_rz(r,z)
     return c.energy - 1e-3*M.phi(psi)
+end
+
+function get_kinetic_energy(M::AxisymmetricEquilibrium, gcp::GCParticle, p_para::T, mu::T, r::T, z::T) where {T<:Number}
+    Babs = M.b(r,z)
+    m = gcp.m
+    mc2 = m*c0^2
+    p = sqrt(p_para^2 + 2*m*Babs*mu)
+    KE = hypot(p*c0, mc2) - mc2
 end
 
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {S, T<:AbstractOrbitCoordinate}
