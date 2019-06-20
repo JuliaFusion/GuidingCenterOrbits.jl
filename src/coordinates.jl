@@ -1,5 +1,8 @@
 abstract type AbstractOrbitCoordinate{T} end
 
+#Enable Broadcasting
+Base.broadcastable(x::T) where T <: AbstractOrbitCoordinate = (x,)
+
 struct EPRCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T # Kinetic Energy
     pitch::T
@@ -59,8 +62,16 @@ function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, pitch, r, z, m, q
     g = M.g(psi)
     pot = M.phi(psi)
     PE = 1e-3*pot
-    mu = e0*1e3*KE*(1-pitch^2)/babs
-    Pphi = -M.sigma*sqrt(2e3*e0*KE*m)*g*pitch/babs + q*e0*psi
+
+    mc2 = m*c0^2
+    KE_j = e0*KE*1e3
+    p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0)
+    p_para = sqrt(p_rel2)*pitch*M.sigma
+    p_perp2 = p_rel2*(1-pitch^2)
+
+    mu = p_perp2/(2*m*babs)
+    Pphi = -p_para*g/babs + q*e0*psi
+
     return HamiltonianCoordinate(KE+PE,mu,Pphi,m,q)
 end
 
@@ -73,37 +84,11 @@ function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::HamiltonianCoordin
 end
 
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
-    psi = M.psi_rz(r,z)
-    babs = M.b(r,z)
-    g = M.g(psi)
-
-    PE = 1e-3*M.phi(psi)
-    mu = e0*1e3*KE*(1-p^2)/babs
-    Pphi = -M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi
-
-    return HamiltonianCoordinate(KE + PE, mu, Pphi, amu*mass_u, q)
+    HamiltonianCoordinate(M, KE, p, r, z, amu*mass_u, q)
 end
 
-function normalized_hamiltonian(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
-    psi = M.psi_rz(r,z)
-    babs = M.b(r,z)
-    g = M.g(psi)
-    B0 = M.b(M.axis...)
-
-    PE = M.phi(psi)*1e-3
-    mu = abs(B0)*KE*(1-p^2)/babs/(KE + PE)
-    Pphi = M.sigma*(-M.sigma*sqrt(2e3*e0*KE*mass_u*amu)*g*p/babs + q*e0*psi)/(e0*M.flux)
-
-    return KE + PE, Pphi, mu
-end
-
-function normalized_hamiltonian(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate)
-    E = hc.energy
-    B0 = M.b(M.axis...)
-    mu = (abs(B0)/(E*e0*1e3))*hc.mu
-    Pphi = (M.sigma/(e0*M.flux))*hc.p_phi
-
-    return E, Pphi, mu
+function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::GCParticle)
+    HamiltonianCoordinate(M,c.energy,c.pitch,c.r,c.z,c.m,c.q)
 end
 
 function Base.show(io::IO, c::HamiltonianCoordinate)
@@ -111,80 +96,4 @@ function Base.show(io::IO, c::HamiltonianCoordinate)
     @printf(io," E = %.3f keV\n",c.energy)
     @printf(io," μ₀ = %.3e\n",c.mu)
     @printf(io," Pᵩ = %.3e",c.p_phi)
-end
-
-abstract type AbstractParticle{T} end
-
-struct Particle{T} <: AbstractParticle{T}
-    r::T
-    phi::T
-    z::T
-    vr::T
-    vt::T
-    vz::T
-    m::Float64
-    q::Int
-end
-
-function Particle(r,phi,z,vr,vphi,vz; amu=H2_amu, q=1)
-    Particle(r, phi, z, vr, vphi, vz, mass_u*amu, q)
-end
-
-struct GCParticle{T} <: AbstractParticle{T}
-    energy::T
-    pitch::T
-    r::T
-    z::T
-    m::Float64
-    q::Int
-end
-
-function GCParticle(energy,pitch,r,z; amu=H2_amu, q=1)
-    GCParticle(energy, pitch, r, z, mass_u*amu, q)
-end
-
-function GCParticle(c::EPRCoordinate)
-    GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
-end
-
-function Electron(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,e_amu*mass_u,-1)
-end
-
-function Proton(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,H1_amu*mass_u,1)
-end
-
-function Deuteron(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,H2_amu*mass_u,1)
-end
-
-function Triton(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,H3_amu*mass_u,1)
-end
-
-function Alpha(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,He3_amu*mass_u,2)
-end
-
-function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::GCParticle)
-    HamiltonianCoordinate(M,c.energy,c.pitch,c.r,c.z,c.m,c.q)
-end
-
-struct EPRParticle{T} <: AbstractParticle{T}
-    energy_c::T
-    pitch_c::T
-    r_c::T
-    z_c::T
-    t::T
-    m::Float64
-    q::Int
-end
-
-function EPRParticle(energy, pitch, r, z, t; amu=H2_amu, q=1)
-    EPRParticle(energy, pitch, r, z, t, mass_u*amu, q)
-end
-
-function EPRParticle(oc::EPRCoordinate; t=oc.t)
-    EPRParticle(oc.energy,oc.pitch,oc.r,oc.z,t,oc.m,oc.q)
 end

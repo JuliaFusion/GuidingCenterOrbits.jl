@@ -223,7 +223,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     z = getindex.(sol.u,3)
     ppara = getindex.(sol.u,4)
     mu = getindex.(sol.u,5)
-    pitch = get_pitch.(Ref(M), Ref(gcp), ppara, mu, r, z)
+    pitch = get_pitch.(M, gcp, ppara, mu, r, z)
 
     if !r_callback
         ind = argmax(r)
@@ -244,7 +244,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     # Get everything else in path
     dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
-    energy = get_kinetic_energy.(Ref(M), Ref(gcp), ppara, mu, r, z)
+    energy = get_kinetic_energy.(M, gcp, ppara, mu, r, z)
 
     # P_rz
 #    prz = zeros(n)

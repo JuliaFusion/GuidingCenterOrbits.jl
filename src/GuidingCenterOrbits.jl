@@ -27,10 +27,14 @@ const He3_amu = 3.01602931914 # amu
 const B5_amu = 10.81 # amu
 const C6_amu = 12.011 # amu
 
-include("coordinates.jl")
-export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate, normalized_hamiltonian
-export AbstractParticle, Particle, GCParticle, EPRParticle
+include("particles.jl")
+export AbstractParticle, Particle
 export Electron, Proton, Deuteron, Triton, Alpha
+export GCParticle, EPRParticle
+export GCElectron, GCProton, GCDeuteron, GCTriton, GCAlpha
+
+include("coordinates.jl")
+export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate
 
 include("callbacks.jl")
 export standard_callback
@@ -43,6 +47,7 @@ export FullOrbitPath
 
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
+export ion_cyclotron_frequency, ion_cyclotron_period, normalize
 
 using ForwardDiff
 using ForwardDiff: Dual, partials, value

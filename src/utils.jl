@@ -21,17 +21,8 @@ function get_pitch(M::AxisymmetricEquilibrium, gcp::GCParticle, p_para::T, mu::T
     return pitch
 end
 
-function get_pitch(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {T<:AbstractOrbitCoordinate, S<:Number}
-    n = length(r)
-    pitch = zeros(S,n)
-    @inbounds for i=1:n
-        pitch[i] = get_pitch(M, c, r[i], z[i])
-    end
-    return pitch
-end
-
 function get_pitch(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}
-    return get_pitch(M, c, path.r, path.z)
+    return get_pitch.(M, c, path.r, path.z)
 end
 
 function get_pitch(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Number}
@@ -40,13 +31,7 @@ function get_pitch(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:Abstr
 end
 
 function get_pitch(M::AxisymmetricEquilibrium, o::Orbit)
-    path = o.path
-    n = length(path.r)
-    pitch = zeros(eltype(path.r),n)
-    @inbounds for i=1:n
-        pitch[i] = get_pitch(M, o.coordinate, path.r[i], path.z[i])
-    end
-    return pitch
+    return get_pitch.(M, o.coordinate, o.path)
 end
 
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::HamiltonianCoordinate, r::T, z::T) where {T<:Number}
@@ -62,17 +47,8 @@ function get_kinetic_energy(M::AxisymmetricEquilibrium, gcp::GCParticle, p_para:
     KE = hypot(p*c0, mc2) - mc2
 end
 
-function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::Vector{S}, z::Vector{S}) where {S, T<:AbstractOrbitCoordinate}
-    n = length(r)
-    energy = zeros(S,n)
-    @inbounds for i=1:n
-        energy[i] = get_kinetic_energy(M, c, r[i], z[i])
-    end
-    return energy
-end
-
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}
-    return get_kinetic_energy(M, c, path.r, path.z)
+    return get_kinetic_energy.(M, c, path.r, path.z)
 end
 
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, r::S, z::S) where {T<:AbstractOrbitCoordinate, S<:Number}
@@ -144,10 +120,28 @@ function hits_wall(path::OrbitPath, wall::Limiter)
     return any(not_in_vessel)
 end
 
-function ion_cyclotron_frequency(M,p::AbstractParticle)
-    return (M.b(p.r,p.z)*e0)/p.m
+function ion_cyclotron_frequency(M,p::GCParticle)
+    KE_j = e0*1e3*p.energy
+    mc2 = p.m*c0^2
+    p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0)
+    gamma = sqrt(1 + p_rel2/((p.m*c0)^2))
+    return p.q*e0*M.b(p.r,p.z)/(gamma*p.m)
 end
 
-function ion_cyclotron_period(M,p::AbstractParticle)
+function ion_cyclotron_period(M,p::GCParticle)
     return 2*pi/ion_cyclotron_frequency(M,p)
 end
+
+function normalize(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate)
+    E = hc.energy
+    B0 = M.b(M.axis...)
+    mu = (abs(B0)/(E*e0*1e3))*hc.mu
+    Pphi = (M.sigma/(e0*M.flux))*hc.p_phi
+
+    return E, Pphi, mu
+end
+
+function normalize(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
+    normalized_hamiltonian(M,HamiltonianCoordinate(M,KE,p,r,z,amu*mass_u,q))
+end
+
