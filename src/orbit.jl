@@ -268,7 +268,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e6,
-                   tmin=0.0,tmax=1000.0*dt, integrator=Tsit5(), wall=nothing, interp_dt = dt,
+                   tmin=0.0,tmax=1e5*dt, integrator=Tsit5(), wall=nothing, interp_dt = dt,
                    classify_orbit=true, one_transit=false, store_path=true, maxiter=3, adaptive=true,
                    autodiff=true, r_callback=true, verbose=false)
 
