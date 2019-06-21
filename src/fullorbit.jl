@@ -53,7 +53,7 @@ end
 function integrate(M, pc::Particle; dt= 0.001, tmax = 100)
 
     dt_sec = dt*1e-6
-    tau_c = ion_cyclotron_period(M,pc)
+    tau_c = cyclotron_period(M,pc)
 
     t = 0:dt:tmax
     nstep = length(t)

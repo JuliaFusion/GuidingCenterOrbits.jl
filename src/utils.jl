@@ -120,16 +120,23 @@ function hits_wall(path::OrbitPath, wall::Limiter)
     return any(not_in_vessel)
 end
 
-function ion_cyclotron_frequency(M,p::GCParticle)
+function cyclotron_frequency(M,p::GCParticle)
     KE_j = e0*1e3*p.energy
     mc2 = p.m*c0^2
     p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0)
     gamma = sqrt(1 + p_rel2/((p.m*c0)^2))
-    return p.q*e0*M.b(p.r,p.z)/(gamma*p.m)
+    return abs(p.q*e0)*M.b(p.r,p.z)/(gamma*p.m)
 end
 
-function ion_cyclotron_period(M,p::GCParticle)
-    return 2*pi/ion_cyclotron_frequency(M,p)
+function cyclotron_frequency(M,p::Particle)
+    v = hypot(p.vr,p.vt,p.vz)
+    beta = v/c0
+    gamma = inv(sqrt(1 - beta^2))
+    return abs(p.q*e0)*M.b(p.r,p.z)/(gamma*p.m)
+end
+
+function cyclotron_period(M,p::T) where T <: AbstractParticle
+    return 2*pi/cyclotron_frequency(M,p)
 end
 
 function normalize(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate)
@@ -142,6 +149,6 @@ function normalize(M::AxisymmetricEquilibrium, hc::HamiltonianCoordinate)
 end
 
 function normalize(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
-    normalized_hamiltonian(M,HamiltonianCoordinate(M,KE,p,r,z,amu*mass_u,q))
+    normalized(M,HamiltonianCoordinate(M,KE,p,r,z,amu*mass_u,q))
 end
 

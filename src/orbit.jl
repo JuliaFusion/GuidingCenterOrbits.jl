@@ -53,7 +53,7 @@ end
 @inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu)
     # Phys. Plasmas 14, 092107 (2007); https://doi.org/10.1063/1.2773702
     # NOTE: Equations 13 and 15 are incorrect. Remove c factor to correct
-    q = gcp.q
+    q = gcp.q*e0
     m = gcp.m
     mc2 = m*c0*c0
 
@@ -102,12 +102,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     # Initial Conditions
     mc2 = gcp.m*c0^2
-    p0 = sqrt(((gcp.energy + mc2)^2 - mc2^2)/(c0*c0))
+    p0 = sqrt(((1e3*e0*gcp.energy + mc2)^2 - mc2^2)/(c0*c0))
     p_para0 = p0*gcp.pitch*M.sigma
     p_perp0 = p0*sqrt(1-gcp.pitch^2)
     mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z))
-    r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0)
 
+    r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0)
     stat.ri = r0
 
     gc_ode = make_gc_ode(M,gcp,stat)
@@ -267,10 +267,10 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=0.1, tmin=0.0,tmax=1000.0,
-                   integrator=Tsit5(), wall=nothing, interp_dt = 0.1, classify_orbit=true,
-                   one_transit=false, store_path=true,maxiter=3,adaptive=true, autodiff=true,
-                   r_callback=true, verbose=false)
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e6,
+                   tmin=0.0,tmax=1000.0*dt, integrator=Tsit5(), wall=nothing, interp_dt = dt,
+                   classify_orbit=true, one_transit=false, store_path=true, maxiter=3, adaptive=true,
+                   autodiff=true, r_callback=true, verbose=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, maxiter,

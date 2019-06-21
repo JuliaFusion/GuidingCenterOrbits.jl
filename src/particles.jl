@@ -27,7 +27,7 @@ function Triton(r,phi,z,vr,vt,vz)
     Particle(r,phi,z,vr,vt,vz,H3_amu*mass_u,1)
 end
 
-function Triton(r,phi,z,vr,vt,vz)
+function Alpha(r,phi,z,vr,vt,vz)
     Particle(r,phi,z,vr,vt,vz,He3_amu*mass_u,2)
 end
 
@@ -42,10 +42,6 @@ end
 
 function GCParticle(energy,pitch,r,z; amu=H2_amu, q=1)
     GCParticle(energy, pitch, r, z, mass_u*amu, q)
-end
-
-function GCParticle(c::EPRCoordinate)
-    GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
 end
 
 function GCElectron(energy,pitch,r,z)
@@ -80,10 +76,6 @@ end
 
 function EPRParticle(energy, pitch, r, z, t; amu=H2_amu, q=1)
     EPRParticle(energy, pitch, r, z, t, mass_u*amu, q)
-end
-
-function EPRParticle(oc::EPRCoordinate; t=oc.t)
-    EPRParticle(oc.energy,oc.pitch,oc.r,oc.z,t,oc.m,oc.q)
 end
 
 #Enable Broadcasting

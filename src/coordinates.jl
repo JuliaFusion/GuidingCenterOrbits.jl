@@ -32,6 +32,14 @@ function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu
     return EPRCoordinate(energy, pitch, R, Z, zero(Z), amu*mass_u, q)
 end
 
+function GCParticle(c::EPRCoordinate)
+    GCParticle(c.energy,c.pitch,c.r,c.z,c.m,c.q)
+end
+
+function EPRParticle(oc::EPRCoordinate; t=oc.t)
+    EPRParticle(oc.energy,oc.pitch,oc.r,oc.z,t,oc.m,oc.q)
+end
+
 function Base.show(io::IO, c::EPRCoordinate)
     println(io,typeof(c))
     @printf(io," E = %.3f keV\n",c.energy)
