@@ -11,24 +11,24 @@ struct Particle{T} <: AbstractParticle{T}
     q::Int
 end
 
-function Electron(r,phi,z,vr,vt,vz)
-    Particle(r,phi,z,vr,vt,vz,e_amu*mass_u,-1)
+function Electron(args...)
+    Particle(promote(args...)...,e_amu*mass_u,-1)
 end
 
-function Proton(r,phi,z,vr,vt,vz)
-    Particle(r,phi,z,vr,vt,vz,H1_amu*mass_u,1)
+function Proton(args...)
+    Particle(promote(args...)...,H1_amu*mass_u,1)
 end
 
-function Deuteron(r,phi,z,vr,vt,vz)
-    Particle(r,phi,z,vr,vt,vz,H2_amu*mass_u,1)
+function Deuteron(args...)
+    Particle(promote(args...)...,H2_amu*mass_u,1)
 end
 
-function Triton(r,phi,z,vr,vt,vz)
-    Particle(r,phi,z,vr,vt,vz,H3_amu*mass_u,1)
+function Triton(args...)
+    Particle(promote(args...)...,H3_amu*mass_u,1)
 end
 
-function Alpha(r,phi,z,vr,vt,vz)
-    Particle(r,phi,z,vr,vt,vz,He3_amu*mass_u,2)
+function Alpha(args...)
+    Particle(promote(args...)...,He3_amu*mass_u,2)
 end
 
 struct GCParticle{T} <: AbstractParticle{T}
@@ -40,28 +40,24 @@ struct GCParticle{T} <: AbstractParticle{T}
     q::Int
 end
 
-function GCParticle(energy,pitch,r,z; amu=H2_amu, q=1)
-    GCParticle(energy, pitch, r, z, mass_u*amu, q)
+function GCElectron(args...)
+    GCParticle(promote(args...)...,e_amu*mass_u,-1)
 end
 
-function GCElectron(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,e_amu*mass_u,-1)
+function GCProton(args...)
+    GCParticle(promote(args...)...,H1_amu*mass_u,1)
 end
 
-function GCProton(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,H1_amu*mass_u,1)
+function GCDeuteron(args...)
+    GCParticle(promote(args...)...,H2_amu*mass_u,1)
 end
 
-function GCDeuteron(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,H2_amu*mass_u,1)
+function GCTriton(args...)
+    GCParticle(promote(args...)...,H3_amu*mass_u,1)
 end
 
-function GCTriton(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,H3_amu*mass_u,1)
-end
-
-function GCAlpha(energy,pitch,r,z)
-    GCParticle(energy,pitch,r,z,He3_amu*mass_u,2)
+function GCAlpha(args...)
+    GCParticle(promote(args...)...,He3_amu*mass_u,2)
 end
 
 struct EPRParticle{T} <: AbstractParticle{T}
@@ -74,8 +70,8 @@ struct EPRParticle{T} <: AbstractParticle{T}
     q::Int
 end
 
-function EPRParticle(energy, pitch, r, z, t; amu=H2_amu, q=1)
-    EPRParticle(energy, pitch, r, z, t, mass_u*amu, q)
+function EPRParticle(args...; amu=H2_amu, q=1)
+    EPRParticle(promote(args)..., mass_u*amu, q)
 end
 
 #Enable Broadcasting

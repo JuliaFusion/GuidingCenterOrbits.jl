@@ -19,7 +19,7 @@ function EPRCoordinate(T=Float64; amu=H2_amu, q = 1)
 end
 
 function EPRCoordinate(energy, pitch, r, z; t = zero(z), amu=H2_amu, q = 1)
-    return EPRCoordinate(energy, pitch, r, z, t, amu*mass_u, q)
+    return EPRCoordinate(promote(energy, pitch, r, z, t)..., amu*mass_u, q)
 end
 
 function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu, q=1, dz=0.2)
@@ -29,7 +29,7 @@ function EPRCoordinate(M::AxisymmetricEquilibrium, energy, pitch, R ; amu=H2_amu
     res = optimize(x->M.psi_rz(R,x), zmin, zmax)
     Z = Optim.minimizer(res)
     (Z == zmax || Z == zmin) && error(@sprintf("Unable to find starting Z value with dz = %.2f. Increase dz",dz))
-    return EPRCoordinate(energy, pitch, R, Z, zero(Z), amu*mass_u, q)
+    return EPRCoordinate(promote(energy, pitch, R, Z, 0)..., amu*mass_u, q)
 end
 
 function GCParticle(c::EPRCoordinate)
@@ -61,7 +61,7 @@ function HamiltonianCoordinate(T=Float64; amu=H2_amu, q=1)
 end
 
 function HamiltonianCoordinate(energy, mu, p_phi; amu=H2_amu, q=1)
-    return HamiltonianCoordinate(energy, mu, p_phi, amu*mass_u, q)
+    return HamiltonianCoordinate(promote(energy, mu, p_phi)..., amu*mass_u, q)
 end
 
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, pitch, r, z, m, q)
@@ -80,7 +80,7 @@ function HamiltonianCoordinate(M::AxisymmetricEquilibrium, KE, pitch, r, z, m, q
     mu = p_perp2/(2*m*babs)
     Pphi = -p_para*g/babs + q*e0*psi
 
-    return HamiltonianCoordinate(KE+PE,mu,Pphi,m,q)
+    return HamiltonianCoordinate(promote(KE+PE,mu,Pphi)...,m,q)
 end
 
 function HamiltonianCoordinate(M::AxisymmetricEquilibrium, c::EPRCoordinate)

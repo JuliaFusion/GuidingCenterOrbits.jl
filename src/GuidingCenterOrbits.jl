@@ -47,7 +47,7 @@ export FullOrbitPath
 
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
-export cyclotron_frequency, cyclotron_period, normalize
+export lorentz_factor, cyclotron_frequency, cyclotron_period, normalize
 
 using ForwardDiff
 using ForwardDiff: Dual, partials, value

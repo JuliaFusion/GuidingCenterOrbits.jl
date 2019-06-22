@@ -52,6 +52,10 @@ end
 
 function integrate(M, pc::Particle; dt= 0.001, tmax = 100)
 
+    if lorentz_factor(pc) > 1.01
+        @warn "Relativistic Full Orbit has not been implemented: Lorentz factor > 1.01"
+    end
+
     dt_sec = dt*1e-6
     tau_c = cyclotron_period(M,pc)
 

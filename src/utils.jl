@@ -120,18 +120,21 @@ function hits_wall(path::OrbitPath, wall::Limiter)
     return any(not_in_vessel)
 end
 
-function cyclotron_frequency(M,p::GCParticle)
+function lorentz_factor(p::GCParticle)
     KE_j = e0*1e3*p.energy
     mc2 = p.m*c0^2
     p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0)
-    gamma = sqrt(1 + p_rel2/((p.m*c0)^2))
-    return abs(p.q*e0)*M.b(p.r,p.z)/(gamma*p.m)
+    return sqrt(1 + p_rel2/((p.m*c0)^2))
 end
 
-function cyclotron_frequency(M,p::Particle)
+function lorentz_factor(p::Particle)
     v = hypot(p.vr,p.vt,p.vz)
     beta = v/c0
-    gamma = inv(sqrt(1 - beta^2))
+    return inv(sqrt(1 - beta^2))
+end
+
+function cyclotron_frequency(M,p::T) where T <: AbstractParticle
+    gamma = lorentz_factor(p)
     return abs(p.q*e0)*M.b(p.r,p.z)/(gamma*p.m)
 end
 
