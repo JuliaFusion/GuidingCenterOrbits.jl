@@ -66,7 +66,7 @@ end
         if !vacuum
             cB = curlB(M,r,z) #Jfield(M,r,z)*4pi*10^-7
         else
-            cb = SVector{3}(0.0,0.0,0.0)
+            cB = SVector{3}(0.0,0.0,0.0)
         end
         bhatXgradB = cross(bhat,gB)
         cbhat = (cB + bhatXgradB)/Babs
