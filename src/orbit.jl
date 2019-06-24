@@ -50,7 +50,7 @@ function GCStatus(T=Float64)
     return GCStatus(1,SVector{5}(z,z,z,z,z),SVector{5}(z,z,z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
-@inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu)
+@inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu, vacuum::Bool, drift::Bool)
     # Phys. Plasmas 14, 092107 (2007); https://doi.org/10.1063/1.2773702
     # NOTE: Equations 13 and 15 are incorrect. Remove c factor to correct
     q = gcp.q*e0
@@ -61,29 +61,41 @@ end
     Babs = norm(F.B)
     bhat = F.B/Babs
 
-    gB = gradB(M,r,z)
-    cB = curlB(M,r,z) #Jfield(M,r,z)*4pi*10^-7
-    bhatXgradB = cross(bhat,gB)
-    cbhat = (cB + bhatXgradB)/Babs
+    if drift
+        gB = gradB(M,r,z)
+        if !vacuum
+            cB = curlB(M,r,z) #Jfield(M,r,z)*4pi*10^-7
+        else
+            cb = SVector{3}(0.0,0.0,0.0)
+        end
+        bhatXgradB = cross(bhat,gB)
+        cbhat = (cB + bhatXgradB)/Babs
 
-    Bstar = F.B + (p_para/q)*cbhat
+        Bstar = F.B + (p_para/q)*cbhat
+    else
+        Bstar = F.B
+    end
     Bstar_para = dot(Bstar,bhat)
 
     gamma = sqrt(1 + (2*mu*Babs)/mc2 + (p_para/(m*c0))^2)
-    gradg = (mu/(gamma*mc2))*gB
-    Estar = F.E - mc2*gradg/q
-
-    Xdot = ((p_para/(gamma*m))*Bstar + cross(Estar,bhat))/Bstar_para
+    if drift
+        gradg = (mu/(gamma*mc2))*gB
+        Estar = F.E - mc2*gradg/q
+        Xdot = ((p_para/(gamma*m))*Bstar + cross(Estar,bhat))/Bstar_para
+    else
+        Estar = F.E
+        Xdot = ((p_para/(gamma*m))*Bstar)/Bstar_para
+    end
 
     p_para_dot = dot(q*Estar,Bstar/Bstar_para)
 
     return SVector{5}(Xdot[1], Xdot[2]/r, Xdot[3], p_para_dot, zero(p_para_dot))
 end
 
-function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus)
+function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus,vacuum::Bool,drift::Bool)
     ode = function f(y,p::Bool,t)
         stat
-        v_gc = gc_velocity(M, gcp, y[1], y[3], y[4], y[5])
+        v_gc = gc_velocity(M, gcp, y[1], y[3], y[4], y[5],vacuum,drift)
     end
     return ode
 end
@@ -91,7 +103,7 @@ end
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,
-                   r_callback::Bool,verbose::Bool)
+                   r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool)
 
     stat = GCStatus(typeof(gcp.r))
 
@@ -110,7 +122,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0)
     stat.ri = r0
 
-    gc_ode = make_gc_ode(M,gcp,stat)
+    gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift)
     stat.vi = gc_ode(r0,false,0.0)
     stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3
 
@@ -274,11 +286,11 @@ end
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e5,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, maxiter=3, adaptive=true,
-                   autodiff=true, r_callback=true, verbose=false)
+                   autodiff=true, r_callback=true, verbose=false, vacuum=false, drift=true)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, maxiter,
-                           adaptive, autodiff, r_callback, verbose)
+                           adaptive, autodiff, r_callback, verbose, vacuum, drift)
     return path, stat
 end
 
