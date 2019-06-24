@@ -122,7 +122,7 @@ function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, kwargs...)
     opath = OrbitPath(energy,pitch,r,z,r*0.0,dt)
 
     # Calculate jacobian
-    J = _get_jacobian(M, opath, o.tau_p, transform; kwargs...)
+    J = _get_jacobian(M, o.coordinate, opath, o.tau_p, transform; kwargs...)
 
     # Shift jacobian
     Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
@@ -136,7 +136,7 @@ function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; transform = 
     if o.class == :degenerate
         return _get_shifted_jacobian(M, o; transform=transform, kwargs...)
     end
-    return _get_jacobian(M, o.path, o.tau_p, transform; kwargs...)
+    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform; kwargs...)
 end
 
 function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x, kwargs...)
@@ -145,10 +145,11 @@ function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x, 
     if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
         return _get_shifted_jacobian(M, o; transform=transform, kwargs...)
     end
-    return _get_jacobian(M, o.path, o.tau_p, transform; kwargs...)
+    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform; kwargs...)
 end
 
-function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p, transform, kwargs...)
+function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractOrbitCoordinate},
+                       o::OrbitPath, tau_p, transform, kwargs...)
     np = length(o)
     detJ = zeros(np)
     if np == 0 || tau_p == 0.0
@@ -159,9 +160,10 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p, transfor
     ed = Dual(o.energy[1],(1.0,0.0,0.0,0.0))
     pd = Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
     rd = Dual(o.r[1],     (0.0,0.0,1.0,0.0))
-    td = Dual(1e-30,      (0.0,0.0,0.0,1.0))
+    td = Dual(1e-15,      (0.0,0.0,0.0,1.0))
     zd = one(td)*o.z[1]
-    gcp = GCParticle(ed,pd,rd,zd)
+
+    gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
     path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
                            one_transit=false, store_path=true,
                            classify_orbit=false, kwargs...)
@@ -179,7 +181,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p, transfor
         pd = Dual(o.pitch[i-1], pp)
         rd = Dual(o.r[i-1],     rp)
         zd = Dual(o.z[i-1],     zp)
-        gcp = GCParticle(ed,pd,rd,zd)
+        gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
 
         dt = o.dt[i-1]
         dt = dt + 1e-30*iszero(dt)
@@ -201,7 +203,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p, transfor
     rd = Dual(o.r[1],     (0.0,0.0,1.0,0.0))
     td = Dual(-1e-30,     (0.0,0.0,0.0,1.0))
     zd = one(td)*o.z[1]
-    gcp = GCParticle(ed,pd,rd,zd)
+    gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
     path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
                            one_transit=false, store_path=true,
                            classify_orbit=false, kwargs...)
@@ -218,7 +220,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p, transfor
         pd = Dual(o.pitch[i+1], pp)
         rd = Dual(o.r[i+1],     rp)
         zd = Dual(o.z[i+1],     zp)
-        gcp = GCParticle(ed,pd,rd,zd)
+        gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
 
         dt = o.dt[i]
         dt = -(dt + 1e-30*iszero(dt))
@@ -238,7 +240,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, o::OrbitPath, tau_p, transfor
 end
 
 function transform(M::AxisymmetricEquilibrium, o::Orbit, ::Type{EPRParticle}; kwargs...)
-    J = _get_jacobian(M, o.path, o.tau_p; kwargs...)[1]
+    J = _get_jacobian(M, o.coordinate, o.path, o.tau_p; kwargs...)[1]
     return EPRParticle(o.coordinate), J
 end
 

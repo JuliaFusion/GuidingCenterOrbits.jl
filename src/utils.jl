@@ -44,7 +44,7 @@ function get_kinetic_energy(M::AxisymmetricEquilibrium, gcp::GCParticle, p_para:
     m = gcp.m
     mc2 = m*c0^2
     p = sqrt(p_para^2 + 2*m*Babs*mu)
-    KE = hypot(p*c0, mc2) - mc2
+    KE = 1e-3*(hypot(p*c0, mc2) - mc2)/e0 #keV
 end
 
 function get_kinetic_energy(M::AxisymmetricEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}

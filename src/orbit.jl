@@ -168,11 +168,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         end
     end
 
-    for i=1:maxiter #Try progressivly smaller time step with symplectic integrator
+    for i=1:maxiter #Try progressivly smaller time step
         success && break
+        dts = dts/10
         try
-            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, force_dtmin=true)
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+                        callback=cb, force_dtmin=true, adaptive=false)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
@@ -181,7 +182,6 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                 throw(err)
             end
         end
-        dts = dts/10
     end
 
     if !success
@@ -193,8 +193,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
         try
-            sol = solve(ode_prob, ImplicitMidpoint(autodiff=autodiff), dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
-                        callback=cb, force_dtmin=true)
+            sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
+                        callback=cb, force_dtmin=true, adaptive=false)
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
@@ -211,9 +211,13 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     if interp_dt > 0.0
         n = floor(Int,abs(sol.t[end]/(interp_dt*1e-6)))
-        if n > 10
+        if n > length(sol)
             sol = sol(range(tmin,sol.t[end],length=n))
+        else
+            sol = sol(range(tmin,sol.t[end],length=length(sol)))
         end
+    else
+        sol = sol(range(tmin,sol.t[end],length=length(sol)))
     end
     n = length(sol)
 
@@ -267,8 +271,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e6,
-                   tmin=0.0,tmax=1e5*dt, integrator=Tsit5(), wall=nothing, interp_dt = dt,
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e5,
+                   tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, maxiter=3, adaptive=true,
                    autodiff=true, r_callback=true, verbose=false)
 
