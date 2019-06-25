@@ -149,7 +149,7 @@ function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x, 
 end
 
 function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractOrbitCoordinate},
-                       o::OrbitPath, tau_p, transform, kwargs...)
+                       o::OrbitPath, tau_p, transform; kwargs...)
     np = length(o)
     detJ = zeros(np)
     if np == 0 || tau_p == 0.0
