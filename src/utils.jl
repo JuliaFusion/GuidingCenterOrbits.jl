@@ -109,7 +109,8 @@ function hits_wall_path(path::OrbitPath, wall::Limiter)
         return false, path
     else
         ind = ind-1
-        return true, OrbitPath(path.energy[1:ind], path.pitch[1:ind],
+        return true, OrbitPath(path.vacuum, path.drift,
+                               path.energy[1:ind], path.pitch[1:ind],
                                path.r[1:ind], path.z[1:ind], path.phi[1:ind],
                                path.dt[1:ind])
     end

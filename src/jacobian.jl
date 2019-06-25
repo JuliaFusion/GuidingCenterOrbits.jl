@@ -104,7 +104,7 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
     return v, detJ
 end
 
-function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, kwargs...)
+function _get_shifted_jacobian(M, o::Orbit; transform = x -> x)
     # Create spline of orbit path
     t = range(0.0,1.0,length=length(o.path))
     A = hcat(o.path.energy,o.path.pitch,o.path.r,o.path.z)
@@ -119,10 +119,10 @@ function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, kwargs...)
 
     dt = fill(step(t)*o.tau_p,length(o.path))
     dt[end] = 0.0
-    opath = OrbitPath(energy,pitch,r,z,r*0.0,dt)
+    opath = OrbitPath(o.path.vacuum, o.path.drift, energy,pitch,r,z,r*0.0,dt)
 
     # Calculate jacobian
-    J = _get_jacobian(M, o.coordinate, opath, o.tau_p, transform; kwargs...)
+    J = _get_jacobian(M, o.coordinate, opath, o.tau_p, transform)
 
     # Shift jacobian
     Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
@@ -134,22 +134,22 @@ end
 function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; transform = x -> x, kwargs...)
     o = get_orbit(M,c; kwargs...)
     if o.class == :degenerate
-        return _get_shifted_jacobian(M, o; transform=transform, kwargs...)
+        return _get_shifted_jacobian(M, o; transform=transform)
     end
-    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform; kwargs...)
+    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x, kwargs...)
+function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x)
     length(o.path) == 0 && return zeros(length(o.path))
     r0 = o.path.r[1]
     if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
-        return _get_shifted_jacobian(M, o; transform=transform, kwargs...)
+        return _get_shifted_jacobian(M, o; transform=transform)
     end
-    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform; kwargs...)
+    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)
 end
 
 function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractOrbitCoordinate},
-                       o::OrbitPath, tau_p, transform; kwargs...)
+                       o::OrbitPath, tau_p, transform)
     np = length(o)
     detJ = zeros(np)
     if np == 0 || tau_p == 0.0
@@ -166,7 +166,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
     gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
     path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
                            one_transit=false, store_path=true,
-                           classify_orbit=false, kwargs...)
+                           classify_orbit=false, drift=o.drift, vacuum=o.vacuum)
 
     x = transform([path.energy[end],path.pitch[end],path.r[end],path.z[end]])
     detJ[1] = max(abs(det(hcat((partials(xx) for xx in x)...))),0.0)
@@ -187,7 +187,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
         dt = dt + 1e-30*iszero(dt)
         path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
                                one_transit=false, store_path=true,
-                               classify_orbit=false, kwargs...)
+                               classify_orbit=false, drift=o.drift,vacuum=o.vacuum)
 
         x = transform([path.energy[end],path.pitch[end],path.r[end],path.z[end]])
         ep = partials(path.energy[end])
@@ -206,7 +206,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
     gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
     path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
                            one_transit=false, store_path=true,
-                           classify_orbit=false, kwargs...)
+                           classify_orbit=false, drift=o.drift,vacuum=o.vacuum)
 
     x = transform([path.energy[end],path.pitch[end],path.r[end],path.z[end]])
     detJ[np] = max(abs(det(hcat((partials(xx) for xx in x)...))),0.0)
@@ -226,7 +226,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
         dt = -(dt + 1e-30*iszero(dt))
         path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
                                one_transit=false, store_path=true,
-                               classify_orbit=false, kwargs...)
+                               classify_orbit=false, drift=o.drift,vacuum=o.vacuum)
 
         x = transform([path.energy[end],path.pitch[end],path.r[end],path.z[end]])
         detJ[i] = max(abs(det(hcat((partials(xx) for xx in x)...))),0.0)
@@ -240,7 +240,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
 end
 
 function transform(M::AxisymmetricEquilibrium, o::Orbit, ::Type{EPRParticle}; kwargs...)
-    J = _get_jacobian(M, o.coordinate, o.path, o.tau_p; kwargs...)[1]
+    J = _get_jacobian(M, o.coordinate, o.path, o.tau_p)[1]
     return EPRParticle(o.coordinate), J
 end
 

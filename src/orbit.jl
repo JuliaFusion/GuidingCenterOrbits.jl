@@ -1,4 +1,6 @@
 struct OrbitPath{T}
+    vacuum::Bool
+    drift::Bool
     energy::Vector{T}
     pitch::Vector{T}
     r::Vector{T}
@@ -8,8 +10,8 @@ struct OrbitPath{T}
 #    dl::Vector{T}
 end
 
-function OrbitPath(T::DataType=Float64)
-    OrbitPath(T[],T[],T[],T[],T[],T[])
+function OrbitPath(T::DataType=Float64; vacuum=false,drift=false)
+    OrbitPath(vacuum,drift,T[],T[],T[],T[],T[],T[])
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -109,7 +111,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
         verbose && @warn "Starting point outside boundary: " r0 = (gcp.r, gcp.z)
-        return OrbitPath(), stat
+        return OrbitPath(;vacuum=vacuum,drift=drift), stat
     end
 
     # Initial Conditions
@@ -199,7 +201,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     if !success
         verbose && @warn "Unable to find Guiding Center Orbit" gcp retcode
         stat.class = :incomplete
-        return OrbitPath(), stat
+        return OrbitPath(;vacuum=vacuum,drift=drift), stat
     end
     stat.errcode=0
 
@@ -255,7 +257,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     end
 
     if !store_path
-        return OrbitPath(), stat
+        return OrbitPath(;vacuum=vacuum,drift=drift), stat
     end
 
     # Get everything else in path
@@ -272,7 +274,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 #        dl[i] = v*dt[i]
 #    end
 
-    path = OrbitPath(energy,pitch,r,z,phi,dt)
+    path = OrbitPath(vacuum,drift,energy,pitch,r,z,phi,dt)
 
     if stat.class == :lost
         stat.tau_p = zero(stat.tau_p)
