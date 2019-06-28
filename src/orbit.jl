@@ -162,7 +162,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         success = sol.retcode == :Success || sol.retcode == :Terminated
         retcode = sol.retcode
     catch err
-        verbose && println(err)
+        verbose && (println("Adaptive"); println(err))
         if isa(err,InterruptException)
             throw(err)
         end
@@ -175,7 +175,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
-            verbose && println(err)
+            verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
             if isa(err,InterruptException)
                 throw(err)
             end
@@ -191,7 +191,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
-            verbose && println(err)
+            verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
             if isa(err,InterruptException)
                 throw(err)
             end
