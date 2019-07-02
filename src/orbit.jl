@@ -104,7 +104,7 @@ end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, maxiter::Int, adaptive::Bool, autodiff::Bool,
+                   one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, adaptive::Bool, autodiff::Bool,
                    r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool)
 
     stat = GCStatus(typeof(gcp.r))
@@ -225,13 +225,14 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     if interp_dt > 0.0
         n = floor(Int,abs(sol.t[end]/(interp_dt*1e-6)))
-        if n > length(sol)
-            sol = sol(range(tmin,sol.t[end],length=n))
-        else
-            sol = sol(range(tmin,sol.t[end],length=length(sol)))
+        if n > max_length
+            @warn "Requested interp_dt conflicts with max_length"
         end
+        n = min(max_length,n)
+        sol = sol(range(tmin,sol.t[end],length=n))
     else
-        sol = sol(range(tmin,sol.t[end],length=length(sol)))
+        n = min(max_length, length(sol))
+        sol = sol(range(tmin,sol.t[end],length=n))
     end
     n = length(sol)
 
@@ -287,11 +288,12 @@ end
 
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e5,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
-                   classify_orbit=true, one_transit=false, store_path=true, maxiter=3, adaptive=true,
-                   autodiff=true, r_callback=true, verbose=false, vacuum=false, drift=true)
+                   classify_orbit=true, one_transit=false, store_path=true, max_length=500,
+                   maxiter=3, adaptive=true, autodiff=true, r_callback=true, verbose=false,
+                   vacuum=false, drift=true)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
-                           classify_orbit, one_transit, store_path, maxiter,
+                           classify_orbit, one_transit, store_path, max_length, maxiter,
                            adaptive, autodiff, r_callback, verbose, vacuum, drift)
     return path, stat
 end
