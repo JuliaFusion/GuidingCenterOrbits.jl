@@ -4,8 +4,7 @@ function r_condition(u,t,integ)
 end
 function r_affect!(integ)
     stat = integ.f.f.stat
-    #println("r callback ",integ.t*1e6," ",integ.u)
-    if !stat.poloidal_complete
+    if !stat.poloidal_complete && stat.nr < 20 # prevent infinite loop
         stat.nr += 1
         if (integ.u[1] > stat.rm)
             stat.rm = integ.u[1]
@@ -35,8 +34,6 @@ function poloidal_affect!(integ)
     vi_rz = SVector(vi[1],vi[3])
     vc_rz = SVector(vc[1],vc[3])
     dprz = dot(vi_rz,vc_rz)/(norm(vi_rz)*norm(vc_rz))
-    #println("poloidal callback ",integ.t*1e6," ",integ.u," ",lr," ",lz)
-    #println(dp," ",dprz)
     if !stat.poloidal_complete && (stat.nr >= 2) &&
         (dp > 0.99 && dprz > 0.99) &&
         (abs(integ.u[1]-ri[1]) < 0.01)
