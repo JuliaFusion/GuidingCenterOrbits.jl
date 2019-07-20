@@ -157,8 +157,13 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     success = false
     retcode = :TotalFailure
     try
-        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+        sol = solve(ode_prob, integrator, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                     callback=cb,adaptive=adaptive)
+        if sol.t[end] >= tspan[2] && one_transit
+            ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
+            sol = solve(ode_prob, integrator, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+                        callback=cb,adaptive=adaptive)
+        end
         success = sol.retcode == :Success || sol.retcode == :Terminated
         retcode = sol.retcode
     catch err
@@ -172,6 +177,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         try
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=false)
+            if sol.t[end] >= tspan[2] && one_transit
+                ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
+                sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+                            callback=cb,adaptive=false)
+            end
             success = sol.retcode == :Success || sol.retcode == :Terminated
             retcode = sol.retcode
         catch err
