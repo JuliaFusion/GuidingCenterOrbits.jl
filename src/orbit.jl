@@ -169,7 +169,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     catch err
         verbose && (println("Adaptive"); println(err))
         if isa(err,InterruptException)
-            throw(err)
+            rethrow(err)
         end
     end
 
@@ -187,7 +187,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         catch err
             verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
             if isa(err,InterruptException)
-                throw(err)
+                rethrow(err)
             end
         end
     end
@@ -203,7 +203,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         catch err
             verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
             if isa(err,InterruptException)
-                throw(err)
+                rethrow(err)
             end
         end
     end
@@ -224,7 +224,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         catch err
             verbose && println(err)
             if isa(err,InterruptException)
-                throw(err)
+                rethrow(err)
             end
         end
     end
