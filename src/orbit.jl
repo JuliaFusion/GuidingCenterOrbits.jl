@@ -117,8 +117,15 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     # Initial Conditions
     mc2 = gcp.m*c0^2
     p0 = sqrt(((1e3*e0*gcp.energy + mc2)^2 - mc2^2)/(c0*c0))
-    p_para0 = p0*gcp.pitch*M.sigma
-    p_perp0 = p0*sqrt(1-gcp.pitch^2)
+    # move abs(pitch) away from one to avoid issues when calculating jacobian;
+    # don't try to be clever by using clamp it doesn't work with the autodiff
+    if abs(gcp.pitch) == 1.0
+        pitch0 = sign(gcp.pitch)*prevfloat(abs(gcp.pitch))
+    else
+        pitch0 = gcp.pitch
+    end
+    p_para0 = p0*pitch0*M.sigma
+    p_perp0 = p0*sqrt(1.0 - pitch0^2)
     mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z))
 
     r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0)
