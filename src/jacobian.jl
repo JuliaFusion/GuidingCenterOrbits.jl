@@ -43,7 +43,7 @@ function eprz_to_eprt(M, energy, pitch, r, z; m=H2_amu, q=1, auto_diff = true, k
             detJ = 0.0
         else
             J = DiffEqDiffTools.finite_difference_jacobian(x->f(x; adaptive=false, kwargs...), x,
-                                                           Val{:central}, eltype(x), Val{false})
+                                                           Val{:central})
             detJ = abs(det(J))
         end
     end
@@ -96,54 +96,60 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
         if islost[1] || erred[1]
             detJ = 0.0
         else
-            J = DiffEqDiffTools.finite_difference_jacobian(x->f(x;kwargs...), x,
-                                                           Val{:central}, eltype(x), Val{false})
+            J = DiffEqDiffTools.finite_difference_jacobian(x->f(x; kwargs...), x,
+                                                           Val{:central}, eltype(x))
             detJ = abs(det(J))
         end
     end
     return v, detJ
 end
 
-function _get_shifted_jacobian(M, o::Orbit; transform = x -> x)
-    # Create spline of orbit path
-    t = range(0.0,1.0,length=length(o.path))
-    A = hcat(o.path.energy,o.path.pitch,o.path.r,o.path.z)
-    itp = extrapolate(scale(interpolate(A,(BSpline(Cubic(Periodic(OnGrid()))), NoInterp())), t, 1:4), (Periodic(), Throw()))
-
-    # Create new orbit path
+function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, spline=true)
     tm = o.coordinate.t
-    energy = itp.(t .- tm, 1)
-    pitch = itp.(t .- tm, 2)
-    r = itp.(t .- tm, 3)
-    z = itp.(t .- tm, 4)
+    tp = range(0.0,1.0,length=length(o.path))
+    if spline
+        # Create spline of orbit path
+        A = hcat(o.path.energy,o.path.pitch,o.path.r,o.path.z)
+        itp = extrapolate(scale(interpolate(A,(BSpline(Cubic(Periodic(OnGrid()))), NoInterp())), tp, 1:4), (Periodic(), Throw()))
 
-    dt = fill(step(t)*o.tau_p,length(o.path))
-    dt[end] = 0.0
-    opath = OrbitPath(o.path.vacuum, o.path.drift, energy,pitch,r,z,r*0.0,dt)
+        # Create new orbit path
+        energy = itp.(tp .- tm, 1)
+        pitch = itp.(tp .- tm, 2)
+        r = itp.(tp .- tm, 3)
+        z = itp.(tp .- tm, 4)
+
+        dt = fill(step(tp)*o.tau_p,length(o.path))
+        dt[end] = 0.0
+        opath = OrbitPath(o.path.vacuum, o.path.drift, energy,pitch,r,z,r*0.0,dt)
+    else
+        os = get_orbit(M,o.coordinate,drift=o.path.drift,vacuum=o.path.vacuum)
+        opath = os.path
+    end
 
     # Calculate jacobian
     J = _get_jacobian(M, o.coordinate, opath, o.tau_p, transform)
 
     # Shift jacobian
-    Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),t), Periodic())
-    Jshifted = max.(Jitp.(t .+ tm),0.0)
+    tj = range(0.0,1.0,length=length(J))
+    Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),tj), Periodic())
+    Jshifted = max.(Jitp.(tp .+ tm),0.0)
 
     return Jshifted
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; transform = x -> x, kwargs...)
+function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; transform = x -> x, spline=true, kwargs...)
     o = get_orbit(M,c; kwargs...)
     if o.class == :degenerate
-        return _get_shifted_jacobian(M, o; transform=transform)
+        return _get_shifted_jacobian(M, o; transform=transform, spline=spline)
     end
     return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x)
+function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x, spline=true)
     length(o.path) == 0 && return zeros(length(o.path))
     r0 = o.path.r[1]
     if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
-        return _get_shifted_jacobian(M, o; transform=transform)
+        return _get_shifted_jacobian(M, o; transform=transform, spline=spline)
     end
     return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)
 end
@@ -160,7 +166,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
     ed = Dual(o.energy[1],(1.0,0.0,0.0,0.0))
     pd = Dual(o.pitch[1], (0.0,1.0,0.0,0.0))
     rd = Dual(o.r[1],     (0.0,0.0,1.0,0.0))
-    td = Dual(1e-15,      (0.0,0.0,0.0,1.0))
+    td = Dual(1e-30,      (0.0,0.0,0.0,1.0))
     zd = one(td)*o.z[1]
 
     gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)

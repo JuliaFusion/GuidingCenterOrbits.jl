@@ -52,6 +52,24 @@ function GCStatus(T=Float64)
     return GCStatus(1,SVector{5}(z,z,z,z,z),SVector{5}(z,z,z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete)
 end
 
+function reset!(stat::GCStatus{T}, one_transit, r_callback) where T
+    stat.errcode = 1
+    stat.nr = 0
+    stat.rm = zero(T)
+    stat.zm = zero(T)
+    stat.tm = zero(T)
+    stat.tau_p = zero(T)
+    stat.tau_t = zero(T)
+    stat.poloidal_complete = false
+    stat.hits_boundary = false
+    stat.class = :incomplete
+    if one_transit && !r_callback
+        stat.nr = 2
+        stat.rm = stat.ri[1]
+        stat.zm = stat.ri[3]
+    end
+end
+
 @inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu, vacuum::Bool, drift::Bool)
     # Phys. Plasmas 14, 092107 (2007); https://doi.org/10.1063/1.2773702
     # NOTE: Equations 13 and 15 are incorrect. Remove c factor to correct
@@ -164,14 +182,16 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     success = false
     retcode = :TotalFailure
     try
-        sol = solve(ode_prob, integrator, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                     callback=cb,adaptive=adaptive)
         if sol.t[end] >= tspan[2] && one_transit
+            reset!(stat,one_transit,r_callback)
             ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
-            sol = solve(ode_prob, integrator, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=adaptive)
         end
-        success = sol.retcode == :Success || sol.retcode == :Terminated
+        success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                  (stat.poloidal_complete || !one_transit) || stat.hits_boundary
         retcode = sol.retcode
     catch err
         verbose && (println("Adaptive"); println(err))
@@ -182,14 +202,17 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     if !success && adaptive #Try non-adaptive
         try
+            reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=false)
             if sol.t[end] >= tspan[2] && one_transit
+                reset!(stat,one_transit,r_callback)
                 ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
                 sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                             callback=cb,adaptive=false)
             end
-            success = sol.retcode == :Success || sol.retcode == :Terminated
+            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                      (stat.poloidal_complete || !one_transit) || stat.hits_boundary
             retcode = sol.retcode
         catch err
             verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
@@ -203,9 +226,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         success && break
         dts = dts/10
         try
+            reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = sol.retcode == :Success || sol.retcode == :Terminated
+            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                      (stat.poloidal_complete || !one_transit) || stat.hits_boundary
             retcode = sol.retcode
         catch err
             verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
@@ -224,9 +249,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
         try
+            reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = sol.retcode == :Success || sol.retcode == :Terminated
+            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+                      (stat.poloidal_complete || !one_transit) || stat.hits_boundary
             retcode = sol.retcode
         catch err
             verbose && println(err)
