@@ -139,7 +139,7 @@ end
 
 function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; transform = x -> x, spline=true, kwargs...)
     o = get_orbit(M,c; kwargs...)
-    if o.class == :degenerate
+    if o.class == :invalid
         return _get_shifted_jacobian(M, o; transform=transform, spline=spline)
     end
     return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)

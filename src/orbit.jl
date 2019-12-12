@@ -367,7 +367,7 @@ function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; hard = false, r
     rmax = stat.rm
     if stat.class != :incomplete && stat.class != :lost
         if rmax > c.r && (hard || !isapprox(rmax,c.r,rtol=rtol))
-            stat.class = :degenerate
+            stat.class = :invalid
         end
     else
         stat.tau_p=zero(stat.tau_p)
@@ -379,7 +379,7 @@ end
 function Base.show(io::IO, orbit::Orbit)
     classes = Dict(:trapped=>"Trapped ",:co_passing=>"Co-passing ",:ctr_passing=>"Counter-passing ",
                    :stagnation=>"Stagnation ",:potato=>"Potato ",:incomplete=>"Incomplete ",
-                   :degenerate=>"Degenerate ",:meta=>"Meta ",:lost=>"Lost ")
+                   :Invalid=>"Invalid ",:meta=>"Meta ",:lost=>"Lost ")
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
     println(io, class_str*"Orbit:")
