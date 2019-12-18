@@ -5,6 +5,7 @@ module GuidingCenterOrbits
 #import standard libraries
 using Printf
 using LinearAlgebra
+using Statistics
 
 using Equilibrium
 using OrdinaryDiffEq

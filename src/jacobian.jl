@@ -104,7 +104,7 @@ function eprt_to_eprz(M, energy, pitch, r, t; tau_p, m=H2_amu, q=1, auto_diff = 
     return v, detJ
 end
 
-function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, spline=true)
+function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, spline=true, tol=0.1,verbose=false)
     tm = o.coordinate.t
     tp = range(0.0,1.0,length=length(o.path))
     if spline
@@ -127,35 +127,43 @@ function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, spline=true)
     end
 
     # Calculate jacobian
-    J = _get_jacobian(M, o.coordinate, opath, o.tau_p, transform)
+    J = _get_jacobian(M, o.coordinate, opath, o.tau_p, transform, tol, verbose)
 
     # Shift jacobian
     tj = range(0.0,1.0,length=length(J))
-    Jitp = extrapolate(scale(interpolate(J,BSpline(Cubic(Periodic(OnGrid())))),tj), Periodic())
+    Jitp = extrapolate(scale(interpolate(J,BSpline(Linear())),tj), Periodic())
     Jshifted = max.(Jitp.(tp .+ tm),0.0)
 
     return Jshifted
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate; transform = x -> x, spline=true, kwargs...)
+function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate;
+                      transform = x -> x, spline=true, tol=0.1,
+                      verbose=false, kwargs...)
     o = get_orbit(M,c; kwargs...)
     if o.class == :invalid
-        return _get_shifted_jacobian(M, o; transform=transform, spline=spline)
+        return _get_shifted_jacobian(M, o; transform=transform, spline=spline,tol=tol,verbose=verbose)
     end
-    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)
+    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform, tol,verbose)
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit; transform = x -> x, spline=true)
+function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit;
+                      transform = x -> x, spline=true, tol=0.1,
+                      verbose=false)
     length(o.path) == 0 && return zeros(length(o.path))
     r0 = o.path.r[1]
     if r0 < o.coordinate.r && !isapprox(r0,o.coordinate.r,rtol=1e-4)
-        return _get_shifted_jacobian(M, o; transform=transform, spline=spline)
+        return _get_shifted_jacobian(M, o; transform=transform, spline=spline,tol=tol,verbose=verbose)
     end
-    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform)
+    return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform, tol,verbose)
+end
+
+function check_jacobian(J::Array; tol = 0.1)
+    !(any(abs.(J .- circshift(J,-1))./median(J) .> tol))
 end
 
 function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractOrbitCoordinate},
-                       o::OrbitPath, tau_p, transform)
+                       o::OrbitPath, tau_p, transform, tol, verbose)
     np = length(o)
     detJ = zeros(np)
     if np == 0 || tau_p == 0.0
@@ -242,11 +250,17 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
         rp = partials(path.r[end])
         zp = partials(path.z[end])
     end
+
+    if tol > 0.0 && !check_jacobian(detJ; tol=tol)
+        verbose && @warn "Jacobian calculation failed. Setting to zero."
+        detJ = zero(detJ)
+    end
+
     return detJ
 end
 
 function transform(M::AxisymmetricEquilibrium, o::Orbit, ::Type{EPRParticle}; kwargs...)
-    J = _get_jacobian(M, o.coordinate, o.path, o.tau_p)[1]
+    J = _get_jacobian(M, o.coordinate, o.path, o.tau_p; kwargs...)[1]
     return EPRParticle(o.coordinate), J
 end
 
