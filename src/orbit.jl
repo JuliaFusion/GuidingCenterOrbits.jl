@@ -17,10 +17,10 @@ end
 Base.length(op::OrbitPath) = length(op.r)
 
 function Base.show(io::IO, path::OrbitPath)
-    println(io, "OrbitPath:")
-    println(io, " length = $(length(path))")
-    println(io, " vacuum = $(path.vacuum)")
-    println(io, " drift = $(path.vacuum)")
+    print(io, typeof(path),"\n")
+    print(io, " length = $(length(path))\n")
+    print(io, " vacuum = $(path.vacuum)\n")
+    print(io, " drift = $(path.vacuum)")
 end
 
 struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
