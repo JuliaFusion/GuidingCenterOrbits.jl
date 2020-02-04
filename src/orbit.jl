@@ -16,6 +16,13 @@ end
 
 Base.length(op::OrbitPath) = length(op.r)
 
+function Base.show(io::IO, path::OrbitPath)
+    println(io, "OrbitPath:")
+    println(io, " length = $(length(path))")
+    println(io, " vacuum = $(path.vacuum)")
+    println(io, " drift = $(path.vacuum)")
+end
+
 struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
@@ -383,6 +390,6 @@ function Base.show(io::IO, orbit::Orbit)
     class_str = orbit.class in keys(classes) ? classes[orbit.class] : string(orbit.class)
 
     println(io, class_str*"Orbit:")
-    @printf(io, " τₚ = %.3f μs\n", orbit.tau_p*1e6)
-    @printf(io, " τₜ = %.3f μs", orbit.tau_t*1e6)
+    @printf(io, " τ_p= %.3f μs\n", orbit.tau_p*1e6)
+    @printf(io, " τ_t= %.3f μs", orbit.tau_t*1e6)
 end
