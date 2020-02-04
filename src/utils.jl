@@ -121,11 +121,15 @@ function hits_wall(path::OrbitPath, wall::Limiter)
     return any(not_in_vessel)
 end
 
-function lorentz_factor(p::GCParticle)
-    KE_j = e0*1e3*p.energy
-    mc2 = p.m*c0^2
+function lorentz_factor(K_keV,m)
+    KE_j = e0*1e3*K_keV
+    mc2 = m*c0^2
     p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0)
-    return sqrt(1 + p_rel2/((p.m*c0)^2))
+    return sqrt(1 + p_rel2/((m*c0)^2))
+end
+
+function lorentz_factor(p::GCParticle)
+    return lorentz_factor(p.energy, p.m)
 end
 
 function lorentz_factor(p::Particle)
