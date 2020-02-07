@@ -52,9 +52,8 @@ export lorentz_factor, cyclotron_frequency, cyclotron_period, normalize
 
 using ForwardDiff
 using ForwardDiff: Dual, partials, value
-using DiffResults, DiffEqDiffTools
 
 include("jacobian.jl")
-export eprz_to_eprt, eprt_to_eprz, get_jacobian, transform
+export get_jacobian, transform
 
 end
