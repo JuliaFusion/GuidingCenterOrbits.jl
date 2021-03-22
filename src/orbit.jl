@@ -1,3 +1,15 @@
+"""
+A struct that fully describes the guiding-centre motion.
+The fields are:
+    vacuum - Determines if the path was computed assuming a vacuum or not
+    drift - If true, then drift motion was included when computing path
+    energy - The energy array of the path
+    pitch - The pitch array of the path
+    r - The r array of the path
+    z - The z array of the path
+    phi - The phi array of the path
+    dt - The incremental times (array) of the path
+"""
 struct OrbitPath{T}
     vacuum::Bool
     drift::Bool
@@ -23,6 +35,15 @@ function Base.show(io::IO, path::OrbitPath)
     print(io, " drift = $(path.vacuum)")
 end
 
+"""
+A struct that describes a tokamak orbit.
+The fields are:
+    coordinate - The coordinate of the orbit. Please see coordinates.jl.
+    class - The class of the orbit (co-passing, trapped, potato etc).
+    tau_p - The poloidal transit time of the orbit.
+    tau_t - The toroidal transit time of the orbit.
+    path - The OrbitPath of the orbit.
+"""
 struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
     class::Symbol
@@ -37,6 +58,23 @@ end
 
 Base.length(o::Orbit) = length(o.path.r)
 
+"""
+A struct that fully describes the integration status of the guiding-centre path/motion.
+The fields are:
+    errcode - The error code of the integration
+    ri - The initial guiding-centre vector (r0,phi0,z0,p_para0,mu0)
+    vi - The initial guiding-centre vector (dr,dphi,dz,dp_para,dmu)
+    initial_dir - The initial direction of the guiding-centre motion
+    nr - A process number (please see integrate() and callbacks.jl)
+    rm - The rm coordinate
+    zm - The zm coordinate
+    tm - The time at the rm,zm coordinate
+    tau_p - The poloidal transit time
+    tau_t - The toroidal transit time
+    poloidal_complete - True if the guiding-centre particle has completed one orbit poloidally
+    hits_boundary - True if the guiding-centre particle hit the boundaries set by M (AxisymmetricEquilibrum)
+    class - The class of the integration (/orbit)(co-passing, trapped, potato etc)
+"""
 mutable struct GCStatus{T<:Number}
     errcode::Int
     ri::SArray{Tuple{5},T,1,5}
@@ -77,19 +115,25 @@ function reset!(stat::GCStatus{T}, one_transit, r_callback) where T
     end
 end
 
+"""
+    gc_velocity(M, gcp, r, z, p_para, mu, vacuum, drift)
+
+Calculate the velocity of the guiding-centre particle gcp, given the inputs. The equations
+are from https://doi.org/10.1063/1.2773702, with a correction for a factor c.
+"""
 @inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu, vacuum::Bool, drift::Bool)
     # Phys. Plasmas 14, 092107 (2007); https://doi.org/10.1063/1.2773702
     # NOTE: Equations 13 and 15 are incorrect. Remove c factor to correct
-    q = gcp.q*e0
+    q = gcp.q*e0 # gcp.q is given in units of integer number of elementary charges. e0 is the elementary charge.
     m = gcp.m
     mc2 = m*c0*c0
 
-    F = fields(M,r,z)
+    F = fields(M,r,z) # Please check Equilibrium.jl/equil.jl/fields()
     Babs = norm(F.B)
     bhat = F.B/Babs
 
     if drift
-        gB = gradB(M,r,z)
+        gB = gradB(M,r,z) # Please check Equilibrium.jl/equil.jl/gradB()
         if !vacuum
             cB = curlB(M,r,z) #Jfield(M,r,z)*4pi*10^-7
         else
@@ -104,7 +148,7 @@ end
     end
     Bstar_para = dot(Bstar,bhat)
 
-    gamma = sqrt(1 + (2*mu*Babs)/mc2 + (p_para/(m*c0))^2)
+    gamma = sqrt(1 + (2*mu*Babs)/mc2 + (p_para/(m*c0))^2) # The relativistic gamma factor
     if drift
         gradg = (mu/(gamma*mc2))*gB
         Estar = F.E - mc2*gradg/q
@@ -119,6 +163,11 @@ end
     return SVector{5}(Xdot[1], Xdot[2]/r, Xdot[3], p_para_dot, zero(p_para_dot))
 end
 
+"""
+    make_gc_ode(M, gcp, stat, vacuum, drift)
+
+Make and return an ordinary differential equation function for the guiding-centre motion.
+"""
 function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus,vacuum::Bool,drift::Bool)
     ode = function f(y,p::Bool,t)
         stat
@@ -127,10 +176,42 @@ function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus
     return ode
 end
 
+"""
+    integrate (M gcp, phi0, ..., maxphi, fix_bugs)
+
+Integrate the guiding-centre particle motion given the axisymmetric equilibrium M
+and lots of input.
+
+Inputs:
+    - M = The AxisymmetricEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.
+    - gcp = The guiding-centre particle whose motion is to be integrated. Please see GuidingCenterParticles.jl/particles.jl.
+    - phi0 = The initial toroidal angle of the guiding-centre particle
+    - dt = The (initial) incremental time step of the integration
+    - tmin = The starting time for the integration
+    - tmax = The stopping time for the integration
+    - integrator = The type of integrator to be used. For example Tsit5(), BS3(), Verner9() etc.
+    - wall = The (R,z) coordinates of the wall of the tokamak (in meters)
+    - interp_dt = Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.
+    - classify_orbit = If true, let the algorithm classify the resulting orbit
+    - one_transit = If true, stop the integration after particles completes one poloidal transit
+    - store_path = If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.
+    - max_length = The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.
+    - maxiter = If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.
+    - toa = Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).
+    - maxiters = The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.
+    - autodiff = Deprecated.
+    - r_callback = If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)
+    - verbose = If true, lots of output messages will be printed during execution.
+    - vacuum = If true, then vacuum will be assumed
+    - drift = If true, then drift effects will be included
+    - limit_phi = If true, then the integration will be terminated when phi direction reaches the value maxphi
+    - maxphi = Please see 'limit_phi'
+    - fix_bugs = If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
+"""
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, adaptive::Bool, autodiff::Bool,
-                   r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool)
+                   one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
+                   r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, fix_bugs::Bool)
 
     stat = GCStatus(typeof(gcp.r))
 
@@ -141,7 +222,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     # Initial Conditions
     mc2 = gcp.m*c0^2
-    p0 = sqrt(((1e3*e0*gcp.energy + mc2)^2 - mc2^2)/(c0*c0))
+    p0 = sqrt(((1e3*e0*gcp.energy + mc2)^2 - mc2^2)/(c0*c0)) # The initial particle momentum
     # move abs(pitch) away from one to avoid issues when calculating jacobian;
     # don't try to be clever by using clamp it doesn't work with the autodiff
     if abs(gcp.pitch) == 1.0
@@ -149,20 +230,21 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     else
         pitch0 = gcp.pitch
     end
-    p_para0 = p0*pitch0*M.sigma
-    p_perp0 = p0*sqrt(1.0 - pitch0^2)
-    mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z))
+    p_para0 = p0*pitch0*M.sigma # The initial parallel momentum
+    p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
+    mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z)) # The initial (and constant) magnetic moment
 
-    r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0)
-    stat.ri = r0
+    r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0) # The initial guiding-centre element vector
+    stat.ri = r0 # The initial status vector is the initial vector
 
-    gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift)
-    stat.vi = gc_ode(r0,false,0.0)
-    stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3
+    gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift) # Make the ordinary differential equation
+    stat.vi = gc_ode(r0,false,tmin) # Obtain the initial velocity
+    stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3 # Is it mostly in the R- or z-direction? Element number 1 or 3?
 
-    tspan = (one(gcp.r)*tmin*1e-6,one(gcp.r)*tmax*1e-6)
-    ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit)
+    tspan = (one(gcp.r)*tmin,one(gcp.r)*tmax)
+    ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit) # Define the ODE problem
 
+    # The callbacks. Please see callbacks.jl for specification.
     if wall != nothing
         wall_cb = wall_callback(wall)
     end
@@ -173,7 +255,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
             stat.nr = 2
             stat.rm = r0[1]
             stat.zm = r0[3]
-            cb = CallbackSet(pol_cb,oob_cb)
+            cb = CallbackSet(pol_cb,oob_cb, brr_cb)
         end
         if wall != nothing
             cb = CallbackSet(cb.continuous_callbacks..., wall_cb, cb.discrete_callbacks...)
@@ -181,25 +263,51 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     else
         cb = oob_cb
         if wall != nothing
-            cb = CallbackSet(wall_cb,oob_cb)
+            cb = CallbackSet(wall_cb,oob_cb, brr_cb)
         end
     end
+    if limit_phi
+        phi_cb = phi_callback(maxphi)
+        cb = CallbackSet(cb.continuous_callbacks..., phi_cb, cb.discrete_callbacks...)
+    end
 
-    dts = dt*1e-6
+    if verbose
+        println(" ")
+        println("---- Initiating orbit integration ---- ")
+        println("- gcp: $(gcp)")
+        println("- dt: $(round(dt/cyclotron_period(M,gcp),sigdigits=4)) times a cyclotron period")
+        println("- (tmin,tmax)= ($(tmin),$(round(tmax/dt))*dt)")
+        println("- Integrator: $(integrator)")
+        println("- interp_dt: $(interp_dt)")
+        println("- classify_orbit: $(classify_orbit)")
+        println("- one_transit: $(one_transit)")
+        println("- Maximum orbit length (will otherwise be interpolated onto this length): $(max_length)")
+        adaptive && println("- The algorithm will re-try non-adaptive integration $(maxiter) times")
+        println("- The first integration will use $(maxiters) numerical iterations. ")
+        r_callback && println("- r_callback will be used.")
+        vacuum && println("- Vacuum is assumed.")
+        drift && println("- Particle drifts are included.")
+        limit_phi && println("- The integration will be toroidally limited to $(round(maxphi/(2*pi))) turns.")
+        println("--------------------------------")
+    end
+
+    # Always try adaptive first
+    dts = dt
     success = false
     retcode = :TotalFailure
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
-                    callback=cb,adaptive=adaptive)
+                    callback=cb,adaptive=true,maxiters=maxiters)
         if sol.t[end] >= tspan[2] && one_transit
             reset!(stat,one_transit,r_callback)
             ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
-                        callback=cb,adaptive=adaptive)
+                        callback=cb,adaptive=true,maxiters=Int(maxiters*10))
         end
         success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
-                  (stat.poloidal_complete || !one_transit) || stat.hits_boundary
+                  ((stat.poloidal_complete || !one_transit) || limit_phi) || stat.hits_boundary
         retcode = sol.retcode
+
     catch err
         verbose && (println("Adaptive"); println(err))
         if isa(err,InterruptException)
@@ -207,7 +315,32 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         end
     end
 
-    if !success && adaptive #Try non-adaptive
+    if !success && fix_bugs
+        verbose && println("Adaptive failed. You wanted to fix bugs. Here is some extra information that might help.")
+        verbose && println("Success: $(success)")
+        verbose && println("sol.retcode: $(retcode)")
+        verbose && println("stat.poloidal_complete: $(stat.poloidal_complete)")
+        verbose && println("!one_transit: $(!one_transit)")
+        verbose && println("Length(sol): $(length(sol))")
+        verbose && println(gcp)
+        verbose && println("The integration will terminate now.")
+        r = getindex.(sol.u,1)
+        phi = getindex.(sol.u,2)
+        z = getindex.(sol.u,3)
+        ppara = getindex.(sol.u,4)
+        mu = getindex.(sol.u,5)
+        pitch = get_pitch.(M, gcp, ppara, mu, r, z)
+        n = length(sol)
+        dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
+        energy = get_kinetic_energy.(M, gcp, ppara, mu, r, z)
+
+        path = OrbitPath(vacuum,drift,energy,pitch,r,z,phi,dt)
+        return path, stat
+    end
+
+    if !success && !toa #Try non-adaptive
+        verbose && println(" ")
+        verbose && println("Adaptive did not find guiding-centre orbit. Trying non-adaptive... ")
         try
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
@@ -219,10 +352,10 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                             callback=cb,adaptive=false)
             end
             success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
-                      (stat.poloidal_complete || !one_transit) || stat.hits_boundary
+                      (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
             retcode = sol.retcode
         catch err
-            verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
+            verbose && (println("Non-Adaptive: dt = $(dts)"); println(err))
             if isa(err,InterruptException)
                 rethrow(err)
             end
@@ -230,17 +363,18 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     end
 
     for i=1:maxiter #Try progressivly smaller time step
-        success && break
+        (success || toa) && break
         dts = dts/10
+        verbose && println("Re-trying non-adaptive with smaller timestep... ")
         try
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
             success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
-                      (stat.poloidal_complete || !one_transit) || stat.hits_boundary
+                      (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
             retcode = sol.retcode
         catch err
-            verbose && (println("Non-Adaptive: dt = $(dts*1e6)"); println(err))
+            verbose && (println("Non-Adaptive: dt = $(dts)"); println(err))
             if isa(err,InterruptException)
                 rethrow(err)
             end
@@ -254,7 +388,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     end
     stat.errcode=0
 
-    if one_transit && stat.class != :lost && !stat.poloidal_complete #Try one more time
+    if one_transit && stat.class != :lost && !stat.poloidal_complete && !toa #Try one more time
+        verbose && println("Trying one last time with even smaller timestep... ")
         try
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
@@ -271,19 +406,22 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     end
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
+        verbose && println(" ")
+        verbose && println("maxiters: $(maxiters)")
+        verbose && println("Solution array lengths: $(length(sol.t))")
         verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
     end
 
     if interp_dt > 0.0
-        n = floor(Int,abs(sol.t[end]/(interp_dt*1e-6)))
+        n = floor(Int,abs(sol.t[end]/interp_dt))
         if n > max_length
             @warn "Requested interp_dt conflicts with max_length"
         end
         n = min(max_length,n)
-        sol = sol(range(tmin,sol.t[end],length=n))
+        sol = sol(range(tmin,sol.t[end],length=n)) # Interpolate solution onto n points evently spaced in time
     else
         n = min(max_length, length(sol))
-        sol = sol(range(tmin,sol.t[end],length=n))
+        sol = sol(range(tmin,sol.t[end],length=n)) # Interpolate solution onto n points evently spaced in time
     end
     n = length(sol)
 
@@ -295,7 +433,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     mu = getindex.(sol.u,5)
     pitch = get_pitch.(M, gcp, ppara, mu, r, z)
 
-    if !r_callback
+    if !r_callback # Check rm, if not automatically checked in r_callback
         ind = argmax(r)
         if r[ind] > stat.rm
             stat.rm = r[ind]
@@ -304,6 +442,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         end
     end
 
+    # Classify the orbit
     if stat.class == :unknown && classify_orbit && one_transit
         stat.class = classify(r,z,pitch,M.axis)
     end
@@ -313,8 +452,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     end
 
     # Get everything else in path
-    dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n]
-    energy = get_kinetic_energy.(M, gcp, ppara, mu, r, z)
+    dt = eltype(r)[(sol.t[min(i+1,n)] - sol.t[i]) for i=1:n] # Get the incremental time steps
+    energy = get_kinetic_energy.(M, gcp, ppara, mu, r, z) # Get the energy of the guiding-centre particle
 
     # P_rz
 #    prz = zeros(n)
@@ -326,26 +465,32 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 #        dl[i] = v*dt[i]
 #    end
 
-    path = OrbitPath(vacuum,drift,energy,pitch,r,z,phi,dt)
+    path = OrbitPath(vacuum,drift,energy,pitch,r,z,phi,dt) # Create an OrbitPath object
 
-    if stat.class == :lost
+    if stat.class == :lost # Take care of lost orbits
         stat.tau_p = zero(stat.tau_p)
         stat.tau_t = zero(stat.tau_t)
         return path, stat
     end
 
-    return path, stat
+    return path, stat # Return the orbit path and the integration status object
 end
 
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e5,
-                   tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
+"""
+    integrate(M, gcp; phi0=0.0, ..., fig_bugs = false)
+
+All default values for the arguments are set in this function. They are passed into the actual integrate() function
+written above.
+"""
+function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
+                   tmin=0.0,tmax=1e5*dt*1e1, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, max_length=500,
-                   maxiter=3, adaptive=true, autodiff=true, r_callback=true, verbose=false,
-                   vacuum=false, drift=true)
+                   maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=true, verbose=false,
+                   vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, fix_bugs=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, max_length, maxiter,
-                           adaptive, autodiff, r_callback, verbose, vacuum, drift)
+                           toa, maxiters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, fix_bugs)
     return path, stat
 end
 
