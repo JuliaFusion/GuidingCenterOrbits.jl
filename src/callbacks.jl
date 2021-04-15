@@ -24,7 +24,7 @@ function freeze_condition(u,t,integ)
     #println(Δspace)
     Δtime = abs(t - integ.tprev)
     #println(Δtime)
-    (Δspace < 1.0e-13) ||  (Δtime < 1.0e-18) # If the integration has stagnated in space or time...
+    (Δspace < 1.0e-10) ||  (Δtime < 1.0e-15) # If the integration has stagnated in space or time (less than an Ångström or femtosecond)...
 end
 function freeze_affect!(integ)
     #println("I did it!")
