@@ -3,8 +3,8 @@
 
 Take the current step u, the current time step t, the previous step integ.uprev
 and the previous time step integ.tprev, and compute the spatial and temporal difference.
-If the spatial difference is less than a thousandth of 1Å, or if the temporal difference
-is less than a thousandth of a femtosecond, return true. Otherwise return false.
+If the spatial difference is less than 1Å, or if the temporal difference
+is less than one femtosecond, return true. Otherwise return false.
 
 Inputs:
     - u = the next step suggested by the integrator. u is an array containing the elements

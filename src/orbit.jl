@@ -177,7 +177,7 @@ function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus
 end
 
 """
-    integrate (M gcp, phi0, ..., maxphi, fix_bugs)
+    integrate (M gcp, phi0, ..., maxphi, debug)
 
 Integrate the guiding-centre particle motion given the axisymmetric equilibrium M
 and lots of input.
@@ -206,12 +206,12 @@ Inputs:
     - drift = If true, then drift effects will be included
     - limit_phi = If true, then the integration will be terminated when phi direction reaches the value maxphi
     - maxphi = Please see 'limit_phi'
-    - fix_bugs = If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
+    - debug = If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
 """
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
-                   r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, fix_bugs::Bool)
+                   r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, debug::Bool)
 
     stat = GCStatus(typeof(gcp.r))
 
@@ -315,7 +315,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         end
     end
 
-    if !success && fix_bugs
+    if !success && debug
         verbose && println("Adaptive failed. You wanted to fix bugs. Here is some extra information that might help.")
         verbose && println("Success: $(success)")
         verbose && println("sol.retcode: $(retcode)")
@@ -486,11 +486,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyc
                    tmin=0.0,tmax=1e5*dt*1e1, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, max_length=500,
                    maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=true, verbose=false,
-                   vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, fix_bugs=false)
+                   vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, debug=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
                            classify_orbit, one_transit, store_path, max_length, maxiter,
-                           toa, maxiters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, fix_bugs)
+                           toa, maxiters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, debug)
     return path, stat
 end
 
