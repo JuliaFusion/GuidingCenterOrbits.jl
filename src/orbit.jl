@@ -263,7 +263,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     else
         cb = oob_cb
         if wall != nothing
-            cb = CallbackSet(wall_cb,oob_cb, brr_cb)
+            cb = CallbackSet(wall_cb,oob_cb) # No brr_cb if !one_transit. This is to ensure compatibility with the workings of jacobian.jl.
         end
     end
     if limit_phi
