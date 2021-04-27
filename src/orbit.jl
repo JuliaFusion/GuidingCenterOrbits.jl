@@ -263,7 +263,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     else
         cb = oob_cb
         if wall != nothing
-            cb = CallbackSet(wall_cb,oob_cb, brr_cb)
+            cb = CallbackSet(wall_cb,oob_cb)
         end
     end
     if limit_phi
