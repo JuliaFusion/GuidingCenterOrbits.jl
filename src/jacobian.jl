@@ -72,7 +72,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
     zd = one(td)*o.z[1]
 
     gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
-    path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
+    path, stat = integrate(M, gcp; tmax=td*tau_p, interp_dt=0.0,
                            one_transit=false, store_path=true,
                            classify_orbit=false, drift=o.drift, vacuum=o.vacuum)
 
@@ -93,7 +93,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
 
         dt = o.dt[i-1]
         dt = dt + 1e-30*iszero(dt)
-        path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
+        path, stat = integrate(M, gcp; tmax=dt, interp_dt=0.0,
                                one_transit=false, store_path=true,
                                classify_orbit=false, drift=o.drift,vacuum=o.vacuum)
 
@@ -112,7 +112,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
     td = Dual(-1e-30,     (0.0,0.0,0.0,1.0))
     zd = one(td)*o.z[1]
     gcp = GCParticle(ed,pd,rd,zd,c.m,c.q)
-    path, stat = integrate(M, gcp; tmax=td*tau_p*1e6, interp_dt=0.0,
+    path, stat = integrate(M, gcp; tmax=td*tau_p, interp_dt=0.0,
                            one_transit=false, store_path=true,
                            classify_orbit=false, drift=o.drift,vacuum=o.vacuum)
 
@@ -132,7 +132,7 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
 
         dt = o.dt[i]
         dt = -(dt + 1e-30*iszero(dt))
-        path, stat = integrate(M, gcp; tmax=dt*1e6, interp_dt=0.0,
+        path, stat = integrate(M, gcp; tmax=dt, interp_dt=0.0,
                                one_transit=false, store_path=true,
                                classify_orbit=false, drift=o.drift,vacuum=o.vacuum)
 
