@@ -1,14 +1,23 @@
 """
 A struct that fully describes the guiding-centre motion.
+
 The fields are:
-    vacuum - Determines if the path was computed assuming a vacuum or not
-    drift - If true, then drift motion was included when computing path
-    energy - The energy array of the path
-    pitch - The pitch array of the path
-    r - The r array of the path
-    z - The z array of the path
-    phi - The phi array of the path
-    dt - The incremental times (array) of the path
+
+`vacuum` - Determines if the path was computed assuming a vacuum or not
+
+`drift` - If true, then drift motion was included when computing path
+
+`energy` - The energy array of the path
+
+`pitch` - The pitch array of the path
+
+`r` - The r array of the path
+
+`z` - The z array of the path
+
+`phi` - The phi array of the path
+
+`dt` - The incremental times (array) of the path
 """
 struct OrbitPath{T}
     vacuum::Bool
@@ -37,12 +46,18 @@ end
 
 """
 A struct that describes a tokamak orbit.
+
 The fields are:
-    coordinate - The coordinate of the orbit. Please see coordinates.jl.
-    class - The class of the orbit (co-passing, trapped, potato etc).
-    tau_p - The poloidal transit time of the orbit.
-    tau_t - The toroidal transit time of the orbit.
-    path - The OrbitPath of the orbit.
+
+`coordinate` - The coordinate of the orbit. Please see coordinates.jl.
+
+`class` - The class of the orbit (co-passing, trapped, potato etc).
+
+`tau_p` - The poloidal transit time of the orbit.
+
+`tau_t` - The toroidal transit time of the orbit.
+
+`path` - The OrbitPath of the orbit.
 """
 struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     coordinate::S
@@ -60,20 +75,34 @@ Base.length(o::Orbit) = length(o.path.r)
 
 """
 A struct that fully describes the integration status of the guiding-centre path/motion.
+
 The fields are:
-    errcode - The error code of the integration
-    ri - The initial guiding-centre vector (r0,phi0,z0,p_para0,mu0)
-    vi - The initial guiding-centre vector (dr,dphi,dz,dp_para,dmu)
-    initial_dir - The initial direction of the guiding-centre motion
-    nr - A process number (please see integrate() and callbacks.jl)
-    rm - The rm coordinate
-    zm - The zm coordinate
-    tm - The time at the rm,zm coordinate
-    tau_p - The poloidal transit time
-    tau_t - The toroidal transit time
-    poloidal_complete - True if the guiding-centre particle has completed one orbit poloidally
-    hits_boundary - True if the guiding-centre particle hit the boundaries set by M (AxisymmetricEquilibrum)
-    class - The class of the integration (/orbit)(co-passing, trapped, potato etc)
+
+`errcode` - The error code of the integration
+
+`ri` - The initial guiding-centre vector (r0,phi0,z0,p_para0,mu0)
+
+`vi` - The initial guiding-centre vector (dr,dphi,dz,dp_para,dmu)
+
+`initial_dir` - The initial direction of the guiding-centre motion
+
+`nr` - A process number (please see integrate() and callbacks.jl)
+
+`rm` - The rm coordinate
+
+`zm` - The zm coordinate
+
+`tm` - The time at the rm,zm coordinate
+
+`tau_p` - The poloidal transit time
+
+`tau_t` - The toroidal transit time
+
+`poloidal_complete` - True if the guiding-centre particle has completed one orbit poloidally
+
+`hits_boundary` - True if the guiding-centre particle hit the boundaries set by M (AxisymmetricEquilibrum)
+
+`class` - The class of the integration (/orbit)(co-passing, trapped, potato etc)
 """
 mutable struct GCStatus{T<:Number}
     errcode::Int
@@ -160,7 +189,8 @@ are from https://doi.org/10.1063/1.2773702, with a correction for a factor c.
 
     p_para_dot = dot(q*Estar,Bstar/Bstar_para)
 
-    return SVector{5}(Xdot[1], Xdot[2]/r, Xdot[3], p_para_dot, zero(p_para_dot))
+    Xdot = cylindrical_cocos(M.cocos, Xdot[1], Xdot[2]/r, Xdot[3])
+    return SVector{5}(Xdot[1], Xdot[2], Xdot[3], p_para_dot, zero(p_para_dot))
 end
 
 """
@@ -169,9 +199,10 @@ end
 Make and return an ordinary differential equation function for the guiding-centre motion.
 """
 function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus,vacuum::Bool,drift::Bool)
+    ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
     ode = function f(y,p::Bool,t)
         stat
-        v_gc = gc_velocity(M, gcp, y[1], y[3], y[4], y[5],vacuum,drift)
+        v_gc = gc_velocity(M, gcp, y[ir], y[iz], y[4], y[5],vacuum,drift)
     end
     return ode
 end
@@ -183,30 +214,53 @@ Integrate the guiding-centre particle motion given the axisymmetric equilibrium 
 and lots of input.
 
 Inputs:
-    - M = The AxisymmetricEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.
-    - gcp = The guiding-centre particle whose motion is to be integrated. Please see GuidingCenterParticles.jl/particles.jl.
-    - phi0 = The initial toroidal angle of the guiding-centre particle
-    - dt = The (initial) incremental time step of the integration
-    - tmin = The starting time for the integration
-    - tmax = The stopping time for the integration
-    - integrator = The type of integrator to be used. For example Tsit5(), BS3(), Verner9() etc.
-    - wall = The (R,z) coordinates of the wall of the tokamak (in meters)
-    - interp_dt = Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.
-    - classify_orbit = If true, let the algorithm classify the resulting orbit
-    - one_transit = If true, stop the integration after particles completes one poloidal transit
-    - store_path = If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.
-    - max_length = The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.
-    - maxiter = If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.
-    - toa = Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).
-    - maxiters = The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.
-    - autodiff = Deprecated.
-    - r_callback = If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)
-    - verbose = If true, lots of output messages will be printed during execution.
-    - vacuum = If true, then vacuum will be assumed
-    - drift = If true, then drift effects will be included
-    - limit_phi = If true, then the integration will be terminated when phi direction reaches the value maxphi
-    - maxphi = Please see 'limit_phi'
-    - debug = If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
+`M` - The AxisymmetricEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.
+
+`gcp` - The guiding-centre particle whose motion is to be integrated. Please see GuidingCenterParticles.jl/particles.jl.
+
+`phi0` - The initial toroidal angle of the guiding-centre particle
+
+`dt` - The (initial) incremental time step of the integration (s)
+
+`tmin` - The starting time for the integration (s)
+
+`tmax` - The stopping time for the integration (s)
+
+`integrator` - The type of ODE integrator to be used. For example Tsit5(), BS3(), Vern9() etc. See DifferentialEquations.jl for full list
+
+`wall` - The (R,z) coordinates of the wall of the tokamak (in meters)
+
+`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.
+
+`classify_orbit` - If true, let the algorithm classify the resulting orbit
+
+`one_transit` - If true, stop the integration after particles completes one poloidal transit
+
+`store_path` - If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.
+
+`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.
+
+`maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.
+
+`toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).
+
+`maxiters` - The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.
+
+`autodiff` - Deprecated.
+
+`r_callback` - If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)
+
+`verbose` - If true, lots of output messages will be printed during execution.
+
+`vacuum` - If true, then vacuum will be assumed
+
+`drift` - If true, then drift effects will be included
+
+`limit_phi` - If true, then the integration will be terminated when phi direction reaches the value maxphi
+
+`maxphi` - Please see 'limit_phi'
+
+`debug` - If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
 """
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
@@ -234,12 +288,15 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
     mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z)) # The initial (and constant) magnetic moment
 
-    r0 = SVector{5}(gcp.r, one(gcp.r)*phi0, gcp.z, one(gcp.r)*p_para0, one(gcp.r)*mu_0) # The initial guiding-centre element vector
+    r0 = SVector{5}(cylindrical_cocos(M.cocos, gcp.r, one(gcp.r)*phi0, gcp.z)...,
+                    one(gcp.r)*p_para0, one(gcp.r)*mu_0) # The initial guiding-centre element vector
+
     stat.ri = r0 # The initial status vector is the initial vector
 
     gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift) # Make the ordinary differential equation
     stat.vi = gc_ode(r0,false,tmin) # Obtain the initial velocity
-    stat.initial_dir = abs(stat.vi[1]) > abs(stat.vi[3]) ? 1 : 3 # Is it mostly in the R- or z-direction? Element number 1 or 3?
+    ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+    stat.initial_dir = abs(stat.vi[ir]) > abs(stat.vi[iz]) ? ir : iz # Is it mostly in the R- or z-direction? Element number 1 or 3?
 
     tspan = (one(gcp.r)*tmin,one(gcp.r)*tmax)
     ode_prob = ODEProblem(gc_ode,r0,tspan,one_transit) # Define the ODE problem
@@ -324,9 +381,11 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         verbose && println("Length(sol): $(length(sol))")
         verbose && println(gcp)
         verbose && println("The integration will terminate now.")
-        r = getindex.(sol.u,1)
-        phi = getindex.(sol.u,2)
-        z = getindex.(sol.u,3)
+
+        ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+        r = getindex.(sol.u,ir)
+        phi = getindex.(sol.u,iphi)
+        z = getindex.(sol.u,iz)
         ppara = getindex.(sol.u,4)
         mu = getindex.(sol.u,5)
         pitch = get_pitch.(M, gcp, ppara, mu, r, z)
@@ -426,9 +485,10 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     n = length(sol)
 
     #Needed for classification
-    r = getindex.(sol.u,1)
-    phi = getindex.(sol.u,2)
-    z = getindex.(sol.u,3)
+    ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+    r = getindex.(sol.u,ir)
+    phi = getindex.(sol.u,iphi)
+    z = getindex.(sol.u,iz)
     ppara = getindex.(sol.u,4)
     mu = getindex.(sol.u,5)
     pitch = get_pitch.(M, gcp, ppara, mu, r, z)
@@ -477,13 +537,13 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 end
 
 """
-    integrate(M, gcp; phi0=0.0, ..., fig_bugs = false)
+    integrate(M, gcp; phi0=0.0, ..., debug = false)
 
 All default values for the arguments are set in this function. They are passed into the actual integrate() function
 written above.
 """
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
-                   tmin=0.0,tmax=1e5*dt*1e1, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
+                   tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, max_length=500,
                    maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=true, verbose=false,
                    vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, debug=false)

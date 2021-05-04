@@ -22,21 +22,15 @@ Base.length(op::FullOrbitPath) = length(op.r)
 function borispush(M, m, v, u, dt)
         x = u[1]
         y = u[2]
-        r = sqrt(x*x + y*y)
-        phi = atan(y,x)
         z = u[3]
 
         q_m_half_dt = (0.5*dt*e0/m)
 
-        F = fields(M,r,z)
-        cp = cos(phi)
-        sp = sin(phi)
-        B = SVector{3}(F.B[1]*cp - F.B[2]*sp,F.B[1]*sp + F.B[2]*cp,F.B[3])
-        E = SVector{3}(F.E[1]*cp - F.E[2]*sp,F.E[1]*sp + F.E[2]*cp,F.E[3])
+        F = fields(M,x,y,z)
 
-        t = q_m_half_dt*B
+        t = q_m_half_dt*F.B
 
-        half_acc = q_m_half_dt*E
+        half_acc = q_m_half_dt*F.E
         v_minus = v .+ half_acc
         v_minus_x_t = cross(v_minus,t)
         v_prime = v_minus + v_minus_x_t
@@ -50,14 +44,13 @@ function borispush(M, m, v, u, dt)
         return v
 end
 
-function integrate(M, pc::Particle; dt= 0.001, tmax = 100)
+function integrate(M, pc::Particle; dt= 0.01*cyclotron_period(M,pc)*1e6, tmax = 1000*cyclotron_period(M,pc)*1e6)
 
     if lorentz_factor(pc) > 1.01
         @warn "Relativistic Full Orbit has not been implemented: Lorentz factor > 1.01"
     end
 
     dt_sec = dt*1e-6
-    tau_c = cyclotron_period(M,pc)
 
     t = 0:dt:tmax
     nstep = length(t)
@@ -68,8 +61,7 @@ function integrate(M, pc::Particle; dt= 0.001, tmax = 100)
     vy_arr = zeros(nstep+1)
     vz_arr = zeros(nstep+1)
 
-    sp = sin(pc.phi)
-    cp = cos(pc.phi)
+    sp, cp = sincos(pc.phi)
     u = SVector{3}([pc.r*cp,pc.r*sp,pc.z])
     v = SVector{3}([pc.vr*cp - pc.vphi*sp,pc.vr*sp + pc.vphi*cp,pc.vz])
     x_arr[1] = u[1]
@@ -112,8 +104,7 @@ function hits_wall(M, pc::Particle, wall; dt=1e-3, tmax=100)
     t = 0:dt:tmax
     nstep = length(t)
 
-    sp = sin(pc.phi)
-    cp = cos(pc.phi)
+    sp,cp = sincos(pc.phi)
     u = SVector{3}([pc.r*cp,pc.r*sp,z])
     v = SVector{3}([pc.vr*cp - pc.vphi*sp,pc.vr*sp + pc.vphi*cp,pc.vz])
     hit = false

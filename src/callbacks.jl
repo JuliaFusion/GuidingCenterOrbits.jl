@@ -16,11 +16,8 @@ Inputs:
     - integ = the integrator. Read more at the 'Integrator interface' page of the DifferentialEquations.jl package website.
 """
 function freeze_condition(u,t,integ)
-    Δu = abs.(u .- integ.uprev) # The difference between the current and previous time-step (R,phi,Z,p_para,mu)
-    Δr = abs(Δu[1])
-    Δphi = abs(Δu[2])
-    Δz = abs(Δu[3])
-    Δspace = sqrt(Δr^2 + Δphi^2 + Δz^2)
+    Δu = abs.(u .- integ.uprev) # The difference between the current and previous time-step (cocos_vec,p_para,mu)
+    Δspace = norm(Δu)
     #println(Δspace)
     Δtime = abs(t - integ.tprev)
     #println(Δtime)
@@ -44,7 +41,8 @@ Inputs:
 """
 function phi_condition(maxphi, u, t, integ)
     stat = integ.f.f.stat # The GCStatus mutable struct defined in orbit.jl
-    !stat.poloidal_complete && (abs(u[2]-stat.ri[2]) > maxphi) # If it has gone around the tokamak more than (maxphi/(2*pi)) times toroidally, but not once poloidally...
+    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    !stat.poloidal_complete && (abs(u[iphi]-stat.ri[iphi]) > maxphi) # If it has gone around the tokamak more than (maxphi/(2*pi)) times toroidally, but not once poloidally...
 end
 function phi_affect!(integ)
     integ.p && terminate!(integ) # If only one poloidal transit desired, terminate the integration
@@ -62,19 +60,21 @@ Inputs:
 """
 function r_condition(u,t,integ)
     v = integ.f(u,integ.p,t)
-    v[1]/sqrt(v[1]^2 +v[3]^2)
+    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    v[ir]/sqrt(v[ir]^2 +v[iz]^2)
 end
 function r_affect!(integ)
     stat = integ.f.f.stat # Get the stat struct. Please see GuidingCenterOrbits.jl/orbit.jl/GCStatus{} for fields.
+    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
     if !stat.poloidal_complete && stat.nr < 20 # prevent infinite loop
         stat.nr += 1
         if (integ.u[1] > stat.rm) # If the guiding-centre particles has gone outside its previous rm coordinate
-            stat.rm = integ.u[1] # Update the rm coordinate with the current r coordinate
-            stat.zm = integ.u[3] # Update the zm coordinate with the current z coordinate
+            stat.rm = integ.u[ir] # Update the rm coordinate with the current r coordinate
+            stat.zm = integ.u[iz] # Update the zm coordinate with the current z coordinate
             stat.tm = integ.t # Update the poloidal transit time with the current time
             M = integ.f.f.M # Get the axisymmetric equilibrium
             gcp = integ.f.f.gcp # Get the guiding-centre particle itself
-            stat.pm = get_pitch(M,gcp,integ.u[4],integ.u[5],integ.u[1],integ.u[3]) # Update the pm coordinate with the current pitch
+            stat.pm = get_pitch(M,gcp,integ.u[4],integ.u[5],integ.u[ir],integ.u[iz]) # Update the pm coordinate with the current pitch
         end
     else
         integ.p && terminate!(integ)
@@ -99,20 +99,21 @@ function poloidal_condition(u,t,integ)
 end
 function poloidal_affect!(integ)
     stat = integ.f.f.stat # Get the stat struct. Please see GuidingCenterOrbits.jl/orbit.jl/GCStatus{} for fields.
+    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
     vi = stat.vi # Get the initial velocity vector
     ri = stat.ri # Get the initial guiding-centre elements vector
     vc = integ.f(integ.u,integ.p,integ.t) # Get the current velocity vector
     dp = dot(vi,vc)/(norm(vi)*norm(vc)) # Compute the normalized dot product between the current velocity vector and the initial velocity vector
-    vi_rz = SVector(vi[1],vi[3]) # Create a 2D vector which is the initial velocity vector projected onto the cross-section of the tokamak
-    vc_rz = SVector(vc[1],vc[3]) # Create a 2D vector which is the current velocity vector projected onto the cross-section of the tokamak
+    vi_rz = SVector(vi[ir],vi[iz]) # Create a 2D vector which is the initial velocity vector projected onto the cross-section of the tokamak
+    vc_rz = SVector(vc[ir],vc[iz]) # Create a 2D vector which is the current velocity vector projected onto the cross-section of the tokamak
     dprz = dot(vi_rz,vc_rz)/(norm(vi_rz)*norm(vc_rz)) # Compute the normalized dot product between the 2D projected initial and current velocities
     if !stat.poloidal_complete && (stat.nr >= 2) &&
         (dp > 0.99 && dprz > 0.99) && # If the dot products are almost 1...
-        (abs(integ.u[1]-ri[1]) < 0.01) # ... and the particle is within 1 cm of the initial r coordinate
+        (abs(integ.u[ir]-ri[ir]) < 0.01) # ... and the particle is within 1 cm of the initial r coordinate
 
         stat.poloidal_complete=true # Deem the particle as poloidally complete
         stat.tau_p = integ.t # Set the current time to be the poloidal transit time
-        stat.tau_t = 2pi*stat.tau_p/abs(integ.u[2] - integ.sol.u[1][2]) # Compute the toroidal transit time
+        stat.tau_t = 2pi*stat.tau_p/abs(integ.u[iphi] - integ.sol.u[1][iphi]) # Compute the toroidal transit time
         stat.class = :unknown # We don't yet know what class the orbit is (potato, banana... etc)
         integ.p && terminate!(integ) # Terminate the integration, if only one poloidal transit is desired
     end
@@ -130,7 +131,8 @@ Inputs:
 """
 function out_of_bounds_condition(u,t,integ)
     M = integ.f.f.M
-    !((M.r[1] < u[1] < M.r[end]) && (M.z[1] < u[3] < M.z[end]))
+    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    !((M.r[1] < u[ir] < M.r[end]) && (M.z[1] < u[iz] < M.z[end]))
 end
 function out_of_bounds_affect!(integ)
     integ.f.f.stat.hits_boundary=true # The particle hit the boundary
