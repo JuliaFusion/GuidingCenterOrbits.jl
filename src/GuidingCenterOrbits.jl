@@ -44,11 +44,12 @@ include("orbit.jl")
 export Orbit, OrbitPath, integrate, get_orbit, gc_velocity
 
 include("fullorbit.jl")
-export FullOrbitPath
+export FullOrbitPath, get_full_orbit
 
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 export lorentz_factor, cyclotron_frequency, cyclotron_period, normalize
+export perpendicular_vectors
 
 using ForwardDiff
 using ForwardDiff: Dual, partials, value

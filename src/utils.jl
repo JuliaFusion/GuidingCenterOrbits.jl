@@ -160,3 +160,41 @@ function normalize(M::AxisymmetricEquilibrium, KE, p, r, z; amu=H2_amu, q=1)
     normalized(M,HamiltonianCoordinate(M,KE,p,r,z,amu*mass_u,q))
 end
 
+"""
+    v_para, v_perp = parallel_perpendicular(v, B)
+
+Returns parallel velocity component (`v_para`) w.r.t to B and the perpendicular vector (`v_perp`)
+"""
+function parallel_perpendicular(v, B)
+    Bhat = B/norm(B)
+    v_para = dot(v,Bhat)
+    v_perp = cross(-Bhat,cross(Bhat,v))
+    return v_para, v_perp
+end
+
+"""
+    a, c = perpendicular_vectors(b)
+
+Calculates normalized vectors that are perpendicular to `b` such that `a x c = b_norm`
+"""
+function perpendicular_vectors(B::T) where T
+    Bhat = B/norm(B)
+
+    if abs(Bhat[3]) == 1
+        a = convert(T, [1, 0, 0])
+        c = convert(T, [0, 1, 0])
+    else
+        if Bhat[3] == 0
+            a = convert(T, [0, 0, 1])
+            c = convert(T, [Bhat[2], -Bhat[1], 0])
+        else
+            a = convert(T, [Bhat[2], -Bhat[1], 0]/norm(Bhat[1:2]))
+            c = convert(T, -[a[2] , -a[1] , (a[1]*Bhat[2] - a[2]*Bhat[1])/Bhat[3]])
+            c = c/norm(c)
+            if Bhat[3] < 0
+                c = -c
+            end
+        end
+    end
+    return a, c
+end
