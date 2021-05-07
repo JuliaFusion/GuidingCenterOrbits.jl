@@ -228,7 +228,7 @@ Inputs:
 
 `integrator` - The type of ODE integrator to be used. For example Tsit5(), BS3(), Vern9() etc. See DifferentialEquations.jl for full list
 
-`wall` - The (R,z) coordinates of the wall of the tokamak (in meters)
+`wall` - Polygon/Wall object defined in Equilibrium.jl. The (R,z) coordinates of the wall of the tokamak (in meters)
 
 `interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.
 
@@ -263,7 +263,7 @@ Inputs:
 `debug` - If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
 """
 function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
-                   dt, tmin, tmax, integrator, wall::Union{Nothing,Limiter}, interp_dt, classify_orbit::Bool,
+                   dt, tmin, tmax, integrator, wall::Union{Nothing,Wall}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
                    r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, debug::Bool)
 

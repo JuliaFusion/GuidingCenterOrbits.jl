@@ -64,15 +64,10 @@ end
 
 function classify(r, z, pitch, axis; n=length(r))
 
-    pp = take(zip(r,z),n)
-    op = Limiter(eltype(r))
-    for p in pp
-        push!(op.vertices,p)
-    end
-    #push!(op.vertices,first(pp))
+    op = Polygon(r,z)
 
     sign_p = sign.(pitch)
-    if in_vessel(op, axis)
+    if in_polygon(op, axis)
         if all(sign_p .== sign_p[1])
             if sign_p[1] > 0.0
                 class = :co_passing
@@ -101,7 +96,7 @@ function classify(path::OrbitPath, axis)
     return classify(path.r,path.z,path.pitch, axis, n=length(path))
 end
 
-function hits_wall_path(path::OrbitPath, wall::Limiter)
+function hits_wall_path(path::OrbitPath, wall::Wall)
 
     not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
     ind = findfirst(not_in_vessel)
@@ -116,7 +111,7 @@ function hits_wall_path(path::OrbitPath, wall::Limiter)
     end
 end
 
-function hits_wall(path::OrbitPath, wall::Limiter)
+function hits_wall(path::OrbitPath, wall::Wall)
     not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
     return any(not_in_vessel)
 end
