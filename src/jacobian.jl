@@ -31,7 +31,7 @@ function _get_shifted_jacobian(M, o::Orbit; transform = x -> x, spline=true, tol
     return Jshifted
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate;
+function get_jacobian(M::AbstractEquilibrium, c::EPRCoordinate;
                       transform = x -> x, spline=true, tol=0.1,
                       verbose=false, kwargs...)
     o = get_orbit(M,c; kwargs...)
@@ -41,7 +41,7 @@ function get_jacobian(M::AxisymmetricEquilibrium, c::EPRCoordinate;
     return _get_jacobian(M, o.coordinate, o.path, o.tau_p, transform, tol,verbose)
 end
 
-function get_jacobian(M::AxisymmetricEquilibrium, o::Orbit;
+function get_jacobian(M::AbstractEquilibrium, o::Orbit;
                       transform = x -> x, spline=true, tol=0.1,
                       verbose=false)
     length(o.path) == 0 && return zeros(length(o.path))
@@ -56,7 +56,7 @@ function check_jacobian(J::Array; tol = 0.1)
     !(any(abs.(J .- circshift(J,-1))./median(J) .> tol))
 end
 
-function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractOrbitCoordinate},
+function _get_jacobian(M::AbstractEquilibrium, c::Union{GCParticle,AbstractOrbitCoordinate},
                        o::OrbitPath, tau_p, transform, tol, verbose)
     np = length(o)
     detJ = zeros(np)
@@ -153,17 +153,17 @@ function _get_jacobian(M::AxisymmetricEquilibrium, c::Union{GCParticle,AbstractO
     return detJ
 end
 
-function transform(M::AxisymmetricEquilibrium, o::Orbit, ::Type{EPRParticle}; kwargs...)
+function transform(M::AbstractEquilibrium, o::Orbit, ::Type{EPRParticle}; kwargs...)
     J = _get_jacobian(M, o.coordinate, o.path, o.tau_p; kwargs...)[1]
     return EPRParticle(o.coordinate), J
 end
 
-function transform(M::AxisymmetricEquilibrium, gcp::GCParticle, ::Type{EPRParticle}; kwargs...)
+function transform(M::AbstractEquilibrium, gcp::GCParticle, ::Type{EPRParticle}; kwargs...)
     o = get_orbit(M, gcp; kwargs...)
     return transform(M, o; kwargs...)
 end
 
-function transform(M::AxisymmetricEquilibrium, c::EPRCoordinate, ::Type{HamiltonianCoordinate})
+function transform(M::AbstractEquilibrium, c::EPRCoordinate, ::Type{HamiltonianCoordinate})
     KE_d = Dual(c.energy, (1.0, 0.0, 0.0))
     p_d =  Dual(c.pitch,  (0.0, 1.0, 0.0))
     r_d =  Dual(c.r,      (0.0, 0.0, 1.0))

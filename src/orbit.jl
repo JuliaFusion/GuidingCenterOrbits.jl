@@ -150,16 +150,16 @@ end
 Calculate the velocity of the guiding-centre particle gcp, given the inputs. The equations
 are from https://doi.org/10.1063/1.2773702, with a correction for a factor c.
 """
-@inline function gc_velocity(M::AxisymmetricEquilibrium, gcp::GCParticle, r, z, p_para, mu, vacuum::Bool, drift::Bool)
+@inline function gc_velocity(M::AbstractEquilibrium, gcp::GCParticle, r, z, p_para, mu, vacuum::Bool, drift::Bool)
     # Phys. Plasmas 14, 092107 (2007); https://doi.org/10.1063/1.2773702
     # NOTE: Equations 13 and 15 are incorrect. Remove c factor to correct
     q = gcp.q*e0 # gcp.q is given in units of integer number of elementary charges. e0 is the elementary charge.
     m = gcp.m
     mc2 = m*c0*c0
 
-    F = fields(M,r,z) # Please check Equilibrium.jl/equil.jl/fields()
-    Babs = norm(F.B)
-    bhat = F.B/Babs
+    B, E = fields(M,r,z) # Please check Equilibrium.jl/equil.jl/fields()
+    Babs = norm(B)
+    bhat = B/Babs
 
     if drift
         gB = gradB(M,r,z) # Please check Equilibrium.jl/equil.jl/gradB()
@@ -171,25 +171,25 @@ are from https://doi.org/10.1063/1.2773702, with a correction for a factor c.
         bhatXgradB = cross(bhat,gB)
         cbhat = (cB + bhatXgradB)/Babs
 
-        Bstar = F.B + (p_para/q)*cbhat
+        Bstar = B + (p_para/q)*cbhat
     else
-        Bstar = F.B
+        Bstar = B
     end
     Bstar_para = dot(Bstar,bhat)
 
     gamma = sqrt(1 + (2*mu*Babs)/mc2 + (p_para/(m*c0))^2) # The relativistic gamma factor
     if drift
         gradg = (mu/(gamma*mc2))*gB
-        Estar = F.E - mc2*gradg/q
+        Estar = E - mc2*gradg/q
         Xdot = ((p_para/(gamma*m))*Bstar + cross(Estar,bhat))/Bstar_para
     else
-        Estar = F.E
+        Estar = E
         Xdot = ((p_para/(gamma*m))*Bstar)/Bstar_para
     end
 
     p_para_dot = dot(q*Estar,Bstar/Bstar_para)
 
-    Xdot = cylindrical_cocos(M.cocos, Xdot[1], Xdot[2]/r, Xdot[3])
+    Xdot = cylindrical_cocos(cocos(M), Xdot[1], Xdot[2]/r, Xdot[3])
     return SVector{5}(Xdot[1], Xdot[2], Xdot[3], p_para_dot, zero(p_para_dot))
 end
 
@@ -198,8 +198,8 @@ end
 
 Make and return an ordinary differential equation function for the guiding-centre motion.
 """
-function make_gc_ode(M::AxisymmetricEquilibrium, gcp::GCParticle, stat::GCStatus,vacuum::Bool,drift::Bool)
-    ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+function make_gc_ode(M::AbstractEquilibrium, gcp::GCParticle, stat::GCStatus,vacuum::Bool,drift::Bool)
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(M))
     ode = function f(y,p::Bool,t)
         stat
         v_gc = gc_velocity(M, gcp, y[ir], y[iz], y[4], y[5],vacuum,drift)
@@ -214,7 +214,7 @@ Integrate the guiding-centre particle motion given the axisymmetric equilibrium 
 and lots of input.
 
 Inputs:
-`M` - The AxisymmetricEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.
+`M` - The AbstractEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.
 
 `gcp` - The guiding-centre particle whose motion is to be integrated. Please see GuidingCenterParticles.jl/particles.jl.
 
@@ -262,14 +262,14 @@ Inputs:
 
 `debug` - If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
 """
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
+function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Wall}, interp_dt, classify_orbit::Bool,
                    one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
                    r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, debug::Bool)
 
     stat = GCStatus(typeof(gcp.r))
-
-    if !((M.r[1] < gcp.r < M.r[end]) && (M.z[1] < gcp.z < M.z[end]))
+    rlims, zlims = limits(M)
+    if !((rlims[1] < gcp.r < rlims[end]) && (zlims[1] < gcp.z < zlims[end]))
         verbose && @warn "Starting point outside boundary: " r0 = (gcp.r, gcp.z)
         return OrbitPath(;vacuum=vacuum,drift=drift), stat
     end
@@ -284,18 +284,21 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     else
         pitch0 = gcp.pitch
     end
-    p_para0 = p0*pitch0*M.sigma # The initial parallel momentum
+    p_para0 = p0*pitch0*B0Ip_sign(M) # The initial parallel momentum
     p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
-    mu_0 = (p_perp0^2)/(2*gcp.m*M.b(gcp.r,gcp.z)) # The initial (and constant) magnetic moment
+    mu_0 = (p_perp0^2)/(2*gcp.m*norm(Bfield(M,gcp.r,gcp.z))) # The initial (and constant) magnetic moment
 
-    r0 = SVector{5}(cylindrical_cocos(M.cocos, gcp.r, one(gcp.r)*phi0, gcp.z)...,
+    r0 = SVector{5}(cylindrical_cocos(cocos(M), gcp.r, one(gcp.r)*phi0, gcp.z)...,
                     one(gcp.r)*p_para0, one(gcp.r)*mu_0) # The initial guiding-centre element vector
 
     stat.ri = r0 # The initial status vector is the initial vector
 
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(M))
     gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift) # Make the ordinary differential equation
     stat.vi = gc_ode(r0,false,tmin) # Obtain the initial velocity
-    ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+
+    r_callback = r_callback && !iszero(stat.vi[ir])
+
     stat.initial_dir = abs(stat.vi[ir]) > abs(stat.vi[iz]) ? ir : iz # Is it mostly in the R- or z-direction? Element number 1 or 3?
 
     tspan = (one(gcp.r)*tmin,one(gcp.r)*tmax)
@@ -310,8 +313,8 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
             cb = transit_callback
         else
             stat.nr = 2
-            stat.rm = r0[1]
-            stat.zm = r0[3]
+            stat.rm = r0[ir]
+            stat.zm = r0[iz]
             cb = CallbackSet(pol_cb,oob_cb, brr_cb)
         end
         if wall != nothing
@@ -339,7 +342,6 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         println("- classify_orbit: $(classify_orbit)")
         println("- one_transit: $(one_transit)")
         println("- Maximum orbit length (will otherwise be interpolated onto this length): $(max_length)")
-        adaptive && println("- The algorithm will re-try non-adaptive integration $(maxiter) times")
         println("- The first integration will use $(maxiters) numerical iterations. ")
         r_callback && println("- r_callback will be used.")
         vacuum && println("- Vacuum is assumed.")
@@ -382,7 +384,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
         verbose && println(gcp)
         verbose && println("The integration will terminate now.")
 
-        ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+        ir, iphi, iz = cylindrical_cocos_indices(cocos(M))
         r = getindex.(sol.u,ir)
         phi = getindex.(sol.u,iphi)
         z = getindex.(sol.u,iz)
@@ -485,7 +487,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
     n = length(sol)
 
     #Needed for classification
-    ir, iphi, iz = cylindrical_cocos_indices(M.cocos)
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(M))
     r = getindex.(sol.u,ir)
     phi = getindex.(sol.u,iphi)
     z = getindex.(sol.u,iz)
@@ -504,7 +506,7 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle, phi0,
 
     # Classify the orbit
     if stat.class == :unknown && classify_orbit && one_transit
-        stat.class = classify(r,z,pitch,M.axis)
+        stat.class = classify(r,z,pitch,magnetic_axis(M))
     end
 
     if !store_path
@@ -542,7 +544,7 @@ end
 All default values for the arguments are set in this function. They are passed into the actual integrate() function
 written above.
 """
-function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
+function integrate(M::AbstractEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, max_length=500,
                    maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=true, verbose=false,
@@ -554,12 +556,12 @@ function integrate(M::AxisymmetricEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyc
     return path, stat
 end
 
-function integrate(M::AxisymmetricEquilibrium, c::EPRCoordinate; kwargs...)
+function integrate(M::AbstractEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c)
     return integrate(M, gcp; r_callback=false, kwargs...)
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
+function get_orbit(M::AbstractEquilibrium, gcp::GCParticle; kwargs...)
     path, stat = integrate(M, gcp; one_transit=true, kwargs...)
 
     if stat.class == :incomplete || stat.class == :lost
@@ -573,7 +575,7 @@ function get_orbit(M::AxisymmetricEquilibrium, gcp::GCParticle; kwargs...)
     return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
 end
 
-function get_orbit(M::AxisymmetricEquilibrium, c::EPRCoordinate; hard = false, rtol=1e-4, kwargs...)
+function get_orbit(M::AbstractEquilibrium, c::EPRCoordinate; hard = false, rtol=1e-4, kwargs...)
     gcp = GCParticle(c)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=false, kwargs...)
     rmax = stat.rm

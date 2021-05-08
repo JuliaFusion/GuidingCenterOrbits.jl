@@ -26,11 +26,11 @@ function borispush(M, m, v, u, dt)
 
         q_m_half_dt = (0.5*dt*e0/m)
 
-        F = fields(M,x,y,z)
+        B, E = fields(M,x,y,z)
 
-        t = q_m_half_dt*F.B
+        t = q_m_half_dt*B
 
-        half_acc = q_m_half_dt*F.E
+        half_acc = q_m_half_dt*E
         v_minus = v .+ half_acc
         v_minus_x_t = cross(v_minus,t)
         v_prime = v_minus + v_minus_x_t
@@ -49,7 +49,7 @@ end
 
 Integrate the particle up to tmax normalized to the cyclotron_period with time step dt is a fraction of a cyclotron period. Default tmax is 1000
 """
-function integrate(M, pc::Particle; dt= 0.01, tmax = 1000)
+function integrate(M::AbstractEquilibrium, pc::Particle; dt= 0.01, tmax = 1000)
 
     if lorentz_factor(pc) > 1.05
         @warn "Relativistic Full Orbit has not been implemented: Lorentz factor > 1.05"
@@ -110,7 +110,7 @@ end
 
 Integrate the full orbit up to tmax (μs) with time step dt (μs). Default tmax is 1000*cyclotron_period.
 """
-function get_full_orbit(M, pc::Particle; kwargs...)
+function get_full_orbit(M::AbstractEquilibrium, pc::Particle; kwargs...)
     return integrate(M, pc; kwargs...)
 end
 
@@ -119,7 +119,7 @@ end
 
 Integrate the full orbit up to tmax (μs) with time step dt (μs). Default tmax is 1000*cyclotron_period.
 """
-function get_full_orbit(M, gcp::GCParticle; gamma = 0.0, kwargs...)
+function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, kwargs...)
 
     # Turn GCParticle into a Particle
     mc2 = gcp.m*c0^2
@@ -131,7 +131,7 @@ function get_full_orbit(M, gcp::GCParticle; gamma = 0.0, kwargs...)
         pitch0 = gcp.pitch
     end
 
-    p_para0 = p0*pitch0*M.sigma # The initial parallel momentum
+    p_para0 = p0*pitch0*B0Ip_sign(M) # The initial parallel momentum
     p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
 
     B = Bfield(M,gcp.r,0.0,gcp.z)

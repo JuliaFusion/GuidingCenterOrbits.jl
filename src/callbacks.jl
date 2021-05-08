@@ -41,7 +41,7 @@ Inputs:
 """
 function phi_condition(maxphi, u, t, integ)
     stat = integ.f.f.stat # The GCStatus mutable struct defined in orbit.jl
-    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(integ.f.f.M))
     !stat.poloidal_complete && (abs(u[iphi]-stat.ri[iphi]) > maxphi) # If it has gone around the tokamak more than (maxphi/(2*pi)) times toroidally, but not once poloidally...
 end
 function phi_affect!(integ)
@@ -60,15 +60,15 @@ Inputs:
 """
 function r_condition(u,t,integ)
     v = integ.f(u,integ.p,t)
-    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(integ.f.f.M))
     v[ir]/sqrt(v[ir]^2 +v[iz]^2)
 end
 function r_affect!(integ)
     stat = integ.f.f.stat # Get the stat struct. Please see GuidingCenterOrbits.jl/orbit.jl/GCStatus{} for fields.
-    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(integ.f.f.M))
     if !stat.poloidal_complete && stat.nr < 20 # prevent infinite loop
         stat.nr += 1
-        if (integ.u[1] > stat.rm) # If the guiding-centre particles has gone outside its previous rm coordinate
+        if (integ.u[ir] > stat.rm) # If the guiding-centre particles has gone outside its previous rm coordinate
             stat.rm = integ.u[ir] # Update the rm coordinate with the current r coordinate
             stat.zm = integ.u[iz] # Update the zm coordinate with the current z coordinate
             stat.tm = integ.t # Update the poloidal transit time with the current time
@@ -99,7 +99,7 @@ function poloidal_condition(u,t,integ)
 end
 function poloidal_affect!(integ)
     stat = integ.f.f.stat # Get the stat struct. Please see GuidingCenterOrbits.jl/orbit.jl/GCStatus{} for fields.
-    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(integ.f.f.M))
     vi = stat.vi # Get the initial velocity vector
     ri = stat.ri # Get the initial guiding-centre elements vector
     vc = integ.f(integ.u,integ.p,integ.t) # Get the current velocity vector
@@ -131,8 +131,9 @@ Inputs:
 """
 function out_of_bounds_condition(u,t,integ)
     M = integ.f.f.M
-    ir, iphi, iz = cylindrical_cocos_indices(integ.f.f.M.cocos)
-    !((M.r[1] < u[ir] < M.r[end]) && (M.z[1] < u[iz] < M.z[end]))
+    ir, iphi, iz = cylindrical_cocos_indices(cocos(M))
+    rlims, zlims = limits(M)
+    !((rlims[1] < u[ir] < rlims[end]) && (zlims[1] < u[iz] < zlims[end]))
 end
 function out_of_bounds_affect!(integ)
     integ.f.f.stat.hits_boundary=true # The particle hit the boundary
