@@ -547,7 +547,7 @@ written above.
 function integrate(M::AbstractEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, max_length=500,
-                   maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=true, verbose=false,
+                   maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=false, verbose=false,
                    vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, debug=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
@@ -558,11 +558,11 @@ end
 
 function integrate(M::AbstractEquilibrium, c::EPRCoordinate; kwargs...)
     gcp = GCParticle(c)
-    return integrate(M, gcp; r_callback=false, kwargs...)
+    return integrate(M, gcp; kwargs...)
 end
 
 function get_orbit(M::AbstractEquilibrium, gcp::GCParticle; kwargs...)
-    path, stat = integrate(M, gcp; one_transit=true, kwargs...)
+    path, stat = integrate(M, gcp; one_transit=true, r_callback=true, kwargs...)
 
     if stat.class == :incomplete || stat.class == :lost
         return Orbit(EPRCoordinate(typeof(gcp.r)),stat.class,stat.tau_p,stat.tau_t,path)
