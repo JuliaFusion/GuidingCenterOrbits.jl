@@ -1,22 +1,14 @@
 """
 A struct that fully describes the guiding-centre motion.
 
-The fields are:
-
-`vacuum` - Determines if the path was computed assuming a vacuum or not
-
-`drift` - If true, then drift motion was included when computing path
-
-`energy` - The energy array of the path
-
-`pitch` - The pitch array of the path
-
-`r` - The r array of the path
-
-`z` - The z array of the path
-
-`phi` - The phi array of the path
-
+The fields are:\\
+`vacuum` - Determines if the path was computed assuming a vacuum or not\\
+`drift` - If true, then drift motion was included when computing path\\
+`energy` - The energy array of the path\\
+`pitch` - The pitch array of the path\\
+`r` - The r array of the path\\
+`z` - The z array of the path\\
+`phi` - The phi array of the path\\
 `dt` - The incremental times (array) of the path
 """
 struct OrbitPath{T}
@@ -47,16 +39,11 @@ end
 """
 A struct that describes a tokamak orbit.
 
-The fields are:
-
-`coordinate` - The coordinate of the orbit. Please see coordinates.jl.
-
-`class` - The class of the orbit (co-passing, trapped, potato etc).
-
-`tau_p` - The poloidal transit time of the orbit.
-
-`tau_t` - The toroidal transit time of the orbit.
-
+The fields are:\\
+`coordinate` - The coordinate of the orbit. Please see coordinates.jl.\\
+`class` - The class of the orbit (co-passing, trapped, potato etc).\\
+`tau_p` - The poloidal transit time of the orbit.\\
+`tau_t` - The toroidal transit time of the orbit.\\
 `path` - The OrbitPath of the orbit.
 """
 struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
@@ -76,33 +63,19 @@ Base.length(o::Orbit) = length(o.path.r)
 """
 A struct that fully describes the integration status of the guiding-centre path/motion.
 
-The fields are:
-
-`errcode` - The error code of the integration
-
-`ri` - The initial guiding-centre vector (r0,phi0,z0,p_para0,mu0)
-
-`vi` - The initial guiding-centre vector (dr,dphi,dz,dp_para,dmu)
-
-`initial_dir` - The initial direction of the guiding-centre motion
-
-`nr` - A process number (please see integrate() and callbacks.jl)
-
-`rm` - The rm coordinate
-
-`zm` - The zm coordinate
-
-`tm` - The time at the rm,zm coordinate
-
-`tau_p` - The poloidal transit time
-
-`tau_t` - The toroidal transit time
-
-`poloidal_complete` - True if the guiding-centre particle has completed one orbit poloidally
-
+The fields are:\\
+`errcode` - The error code of the integration\\
+`ri` - The initial guiding-centre vector (r0,phi0,z0,p_para0,mu0)\\
+`vi` - The initial guiding-centre vector (dr,dphi,dz,dp_para,dmu)\\
+`initial_dir` - The initial direction of the guiding-centre motion\\
+`nr` - A process number (please see integrate() and callbacks.jl)\\
+`rm` - The rm coordinate\\
+`zm` - The zm coordinate\\
+`tm` - The time at the rm,zm coordinate\\
+`tau_p` - The poloidal transit time\\
+`tau_t` - The toroidal transit time\\
+`poloidal_complete` - True if the guiding-centre particle has completed one orbit poloidally\\
 `hits_boundary` - True if the guiding-centre particle hit the boundaries set by M (AxisymmetricEquilibrum)
-
-`class` - The class of the integration (/orbit)(co-passing, trapped, potato etc)
 """
 mutable struct GCStatus{T<:Number}
     errcode::Int
@@ -213,53 +186,30 @@ end
 Integrate the guiding-centre particle motion given the axisymmetric equilibrium M
 and lots of input.
 
-Inputs:
-`M` - The AbstractEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.
-
-`gcp` - The guiding-centre particle whose motion is to be integrated. Please see GuidingCenterParticles.jl/particles.jl.
-
-`phi0` - The initial toroidal angle of the guiding-centre particle
-
-`dt` - The (initial) incremental time step of the integration (s)
-
-`tmin` - The starting time for the integration (s)
-
-`tmax` - The stopping time for the integration (s)
-
-`integrator` - The type of ODE integrator to be used. For example Tsit5(), BS3(), Vern9() etc. See DifferentialEquations.jl for full list
-
-`wall` - Polygon/Wall object defined in Equilibrium.jl. The (R,z) coordinates of the wall of the tokamak (in meters)
-
-`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.
-
-`classify_orbit` - If true, let the algorithm classify the resulting orbit
-
-`one_transit` - If true, stop the integration after particles completes one poloidal transit
-
-`store_path` - If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.
-
-`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.
-
-`maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.
-
-`toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).
-
-`maxiters` - The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.
-
-`autodiff` - Deprecated.
-
-`r_callback` - If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)
-
-`verbose` - If true, lots of output messages will be printed during execution.
-
-`vacuum` - If true, then vacuum will be assumed
-
-`drift` - If true, then drift effects will be included
-
-`limit_phi` - If true, then the integration will be terminated when phi direction reaches the value maxphi
-
-`maxphi` - Please see 'limit_phi'
-
+Inputs:\\
+`M` - The AbstractEquilibrium struct containing all info about the tokamak equilibrium. Please see Equilibrium.jl/equil.jl.\\
+`gcp` - The guiding-centre particle whose motion is to be integrated. Please see GuidingCenterParticles.jl/particles.jl.\\
+`phi0` - The initial toroidal angle of the guiding-centre particle\\
+`dt` - The (initial) incremental time step of the integration (s)\\
+`tmin` - The starting time for the integration (s)\\
+`tmax` - The stopping time for the integration (s)\\
+`integrator` - The type of ODE integrator to be used. For example Tsit5(), BS3(), Vern9() etc. See DifferentialEquations.jl for full list\\
+`wall` - Boundary object defined in Equilibrium.jl. The (R,z) coordinates of the wall of the tokamak (in meters)\\
+`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.\\
+`classify_orbit` - If true, let the algorithm classify the resulting orbit\\
+`one_transit` - If true, stop the integration after particles completes one poloidal transit\\
+`store_path` - If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.\\
+`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.\\
+`maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
+`toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).\\
+`maxiters` - The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.\\
+`autodiff` - Deprecated.\\
+`r_callback` - If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)\\
+`verbose` - If true, lots of output messages will be printed during execution.\\
+`vacuum` - If true, then vacuum will be assumed\\
+`drift` - If true, then drift effects will be included\\
+`limit_phi` - If true, then the integration will be terminated when phi direction reaches the value maxphi\\
+`maxphi` - Please see 'limit_phi'\\
 `debug` - If true, then de-bugging mode is activated. Function will terminate and return after first adaptive integration (if failed).
 """
 function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
