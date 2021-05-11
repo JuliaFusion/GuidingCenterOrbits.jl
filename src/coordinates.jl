@@ -78,7 +78,7 @@ function HamiltonianCoordinate(M::AbstractEquilibrium, KE, pitch, r, z, m, q)
     p_perp2 = p_rel2*(1-pitch^2)
 
     mu = p_perp2/(2*m*babs)
-    Pphi = -p_para*g/babs + q*e0*psi
+    Pphi = p_para*g/babs + q*e0*psi
 
     return HamiltonianCoordinate(promote(KE+PE,mu,Pphi)...,m,q)
 end

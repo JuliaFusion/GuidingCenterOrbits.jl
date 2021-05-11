@@ -13,6 +13,7 @@ using Optim
 using Base.Iterators
 using Interpolations
 using StaticArrays
+using Contour
 #using Plots
 
 const e0 = 1.60217733e-19 # Coulombs / Joules
@@ -45,6 +46,9 @@ export Orbit, OrbitPath, integrate, get_orbit, gc_velocity
 
 include("fullorbit.jl")
 export FullOrbitPath, get_full_orbit
+
+include("projection.jl")
+export OrbitProjection, orbit_projection, in_orbit
 
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy

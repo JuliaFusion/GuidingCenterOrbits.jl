@@ -147,7 +147,7 @@ function normalize(M::AbstractEquilibrium, hc::HamiltonianCoordinate)
     E = hc.energy
     B0 = norm(Bfield(M, magnetic_axis(M)...))
     mu = (abs(B0)/(E*e0*1e3))*hc.mu
-    psilims = abs(-(psi_limits(M)...))
+    flux = abs(-(psi_limits(M)...))
     Pphi = (B0Ip_sign(M)/(e0*flux))*hc.p_phi
 
     return E, Pphi, mu
