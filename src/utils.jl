@@ -110,8 +110,8 @@ In section 3 of the paper, the abritrary threshold of 0.073 is used. Here, we in
 If the condition is satisfied for a threshold of 0.04, no significant discrepancy between GCDE 
 and FOE is to be expected. The equations to compute ̂M are from Appendix B of the same paper (B.2).
 
-Return true if the criterion is fulfilled.
-Return false if the criterion is not fulfilled.
+Return true if the criterion is fulfilled, and it is ok to use GCDE.
+Return false if the criterion is not fulfilled, and FOE should be used instead.
     
 Note! This function would have been a callback, had it not been for ForwardDiff.jacobian() being so slow.
 """
