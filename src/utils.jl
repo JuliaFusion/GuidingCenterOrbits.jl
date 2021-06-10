@@ -106,8 +106,8 @@ to determine whether the usage of guiding-center drift equations (GCDE) could be
 a significant discrepancy compared to full-orbit equations (FOE). The matrix ̂M is the matrix
 found in equation (2) of D. Pfefferlé et al (2015) (https://doi.org/10.1088/0741-3335/57/5/054017)
 and the condition to be evaluated is the condition found in equation (3) of the same paper.
-In section 3 of the paper, the abritrary threshold of 0.073 is used. Here, we instead use 0.04.
-If the condition is satisfied for a threshold of 0.04, no significant discrepancy between GCDE 
+In section 3 of the paper, the abritrary threshold of 0.073 is used. Here, we instead use 0.05.
+If the condition is satisfied for a threshold of 0.05, no significant discrepancy between GCDE 
 and FOE is to be expected. The equations to compute ̂M are from Appendix B of the same paper (B.2).
 
 Return true if the criterion is fulfilled, and it is ok to use GCDE.
@@ -155,7 +155,7 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; verbose=false)
 
         criterion = sqrt(λmax)*r_g / Babs
 
-        if criterion > 0.04 # criterion violated
+        if criterion > 0.05 # criterion violated
             verbose && println("criterion violated!")
             verbose && println("criterion: $(criterion)")
             verbose && println("r_g: $(r_g) m")
