@@ -100,7 +100,7 @@ end
 
 gcde_check(M, o; verbose=false)
 
-For each point along the orbit path, compute the gyro-radius ρ⊥, the magnetic field
+For each point along the orbit path, compute the gyro-radius r_g, the magnetic field
 amplitude B and the square root of the maximum eigenvalue of the matrix ̂M. Use these quantities
 to determine whether the usage of guiding-center drift equations (GCDE) could be expected to produce 
 a significant discrepancy compared to full-orbit equations (FOE). The matrix ̂M is the matrix
