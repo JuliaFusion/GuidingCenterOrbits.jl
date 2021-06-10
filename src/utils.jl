@@ -96,6 +96,78 @@ function classify(path::OrbitPath, axis)
     return classify(path.r,path.z,path.pitch, axis, n=length(path))
 end
 
+"""
+
+gcde_check(M, o; verbose=false)
+
+For each point along the orbit path, compute the gyro-radius ρ⊥, the magnetic field
+amplitude B and the square root of the maximum eigenvalue of the matrix ̂M. Use these quantities
+to determine whether the usage of guiding-center drift equations (GCDE) could be expected to produce 
+a significant discrepancy compared to full-orbit equations (FOE). The matrix ̂M is the matrix
+found in equation (2) of D. Pfefferlé et al (2015) (https://doi.org/10.1088/0741-3335/57/5/054017)
+and the condition to be evaluated is the condition found in equation (3) of the same paper.
+In section 3 of the paper, the abritrary threshold of 0.073 is used. Here, we instead use 0.04.
+If the condition is satisfied for a threshold of 0.04, no significant discrepancy between GCDE 
+and FOE is to be expected. The equations to compute ̂M are from Appendix B of the same paper (B.2).
+
+Return true if the criterion is fulfilled.
+Return false if the criterion is not fulfilled.
+    
+Note! This function would have been a callback, had it not been for ForwardDiff.jacobian() being so slow).
+"""
+function gcde_check(M::AbstractEquilibrium, o::Orbit; verbose=false)
+    m = o.coordinate.m # Mass of particle. kg
+    KE = o.coordinate.energy # Kinetic energy. keV
+    mc2 = m*c0*c0 # Rest energy. Joule
+    KE_j = e0*KE*1e3 # Kinetic energy. Joule
+    p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Square of relativistic momentum
+    q = o.coordinate.q*e0 # Particle charge. Coulomb
+
+    for i=1:length(o.path.r)
+        verbose && println("Evaluating gcde criterion for orbit path position $(i) of $(length(o.path.r))... ")
+        R = o.path.r[i] # Major radius position of particle
+        φ = o.path.phi[i] # Toroidal angle position of particle
+        Z = o.path.z[i] # Vertical position of particle
+        pitch = o.path.pitch[i] # Pitch of particle
+
+        p_perp2 = p_rel2*(1-pitch^2) # Square of relativistic perpendicular momentum
+        B = Bfield(M, R, Z) # Magnetic field vector at particle position.
+        Babs = norm(B) # Magnetic field magnitude. Tesla
+
+        r_g = sqrt(p_perp2) / (abs(q)*Babs) # Gyroradius at particle position. Meter
+
+        jacB = ForwardDiff.jacobian(x->Bfield(M,x[1],x[3]),SVector{3}(R,zero(R),Z)) # Jacobian of magnetic field
+        #verbose && println("Jacobian(B): $(jacB)")
+        chrB = [0.0 -R*B[2] 0.0;B[2]/R B[1]/R 0.0;0.0 0.0 0.0] # The Christoffel symbol component of the covariant derivative
+        Bij = jacB .+ chrB
+
+        gij = [1.0 0.0 0.0;0.0 R*R 0.0;0.0 0.0 1.0]
+
+        Pjk = inv(gij) .- ((1/(Babs^2)) .*[B[1]*B[1] B[1]*B[2] B[1]*B[3];B[2]*B[1] B[2]*B[2] B[2]*B[3];B[3]*B[1] B[3]*B[2] B[3]*B[3]])
+
+        dxmdrk = [cos(φ) -R*sin(φ) 0.0;sin(φ) R*cos(φ) 0.0;0.0 0.0 1.0]
+
+        Vim = Bij*Pjk*dxmdrk
+        Mhat = Vim*inv(gij)*transpose(Vim)
+        #Mhat = Vim*gij*transpose(Vim) # Exact formulation in D. Pfefferlé et al (2015). Should be inv(gij)?
+
+        λmax = maximum(eigvals(Mhat)) # Could use λmax = tr(Mhat) instead to speed up (trace of matrix), but less accurate.
+
+        criterion = sqrt(λmax)*r_g / Babs
+
+        if criterion > 0.04 # criterion violated
+            verbose && println("criterion violated!")
+            verbose && println("criterion: $(criterion)")
+            verbose && println("r_g: $(r_g) m")
+            verbose && println("|B|: $(Babs) T")
+            verbose && println("√(λmax): $(sqrt(λmax))")
+            return false
+        end
+    end
+
+    return true
+end
+
 function hits_wall_path(path::OrbitPath, wall::Wall)
 
     not_in_vessel = [~in_vessel(wall,p) for p in zip(path.r,path.z)]
@@ -141,6 +213,26 @@ end
 
 function cyclotron_period(M,p::T) where T <: AbstractParticle
     return 2*pi/cyclotron_frequency(M,p)
+end
+
+function gyroradius(M,p::GCParticle)
+    γ = lorentz_factor(p)
+    Babs = norm(Bfield(M, p.r, p.z)) # Magnetic field magnitude. Tesla
+    m = p.m # Mass of particle
+    KE = p.energy # Kinetic energy. keV
+    mc2 = m*c0*c0 # Rest energy. Joule
+    KE_j = e0*KE*1e3 # Kinetic energy. Joule
+    p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Relativistic momentum
+    p_perp2 = p_rel2*(1-p.pitch^2) # Square of relativistic perpendicular momentum
+
+    return sqrt(p_perp2) / (abs(p.q)*B)
+end
+
+function gyroradius(M,p::Particle)
+    B = Bfield(M, p.r, p.z)
+    vpara, vperp = parallel_perpendicular([p.vr p.vt p.vz], B)
+    γ = lorentz_factor(p)
+    return γ*(p.m)*vperp / (abs(p.q)*norm(B))
 end
 
 function normalize(M::AbstractEquilibrium, hc::HamiltonianCoordinate)

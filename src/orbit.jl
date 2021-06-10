@@ -71,11 +71,13 @@ The fields are:\\
 `nr` - A process number (please see integrate() and callbacks.jl)\\
 `rm` - The rm coordinate\\
 `zm` - The zm coordinate\\
+`pm` - The pm coordinate\\
 `tm` - The time at the rm,zm coordinate\\
 `tau_p` - The poloidal transit time\\
 `tau_t` - The toroidal transit time\\
 `poloidal_complete` - True if the guiding-centre particle has completed one orbit poloidally\\
-`hits_boundary` - True if the guiding-centre particle hit the boundaries set by M (AxisymmetricEquilibrum)
+`hits_boundary` - True if the guiding-centre particle hit the boundaries set by M (AbstractEquilibrum)\\
+`class` - The type of orbit (:co-passing, :trapped, :potato etc)
 """
 mutable struct GCStatus{T<:Number}
     errcode::Int
@@ -181,7 +183,7 @@ function make_gc_ode(M::AbstractEquilibrium, gcp::GCParticle, stat::GCStatus,vac
 end
 
 """
-    integrate (M gcp, phi0, ..., maxphi, debug)
+    integrate(M, gcp, phi0, ..., maxphi, debug)
 
 Integrate the guiding-centre particle motion given the axisymmetric equilibrium M
 and lots of input.
@@ -236,7 +238,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     end
     p_para0 = p0*pitch0*B0Ip_sign(M) # The initial parallel momentum
     p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
-    mu_0 = (p_perp0^2)/(2*gcp.m*norm(Bfield(M,gcp.r,gcp.z))) # The initial (and constant) magnetic moment
+    mu_0 = (p_perp0^2)/(2*gcp.m*norm(Bfield(M,gcp.r,gcp.z))) # The initial (and presumably constant) magnetic moment
 
     r0 = SVector{5}(cylindrical_cocos(cocos(M), gcp.r, one(gcp.r)*phi0, gcp.z)...,
                     one(gcp.r)*p_para0, one(gcp.r)*mu_0) # The initial guiding-centre element vector
@@ -515,12 +517,12 @@ function get_orbit(M::AbstractEquilibrium, gcp::GCParticle; kwargs...)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=true, kwargs...)
 
     if stat.class == :incomplete || stat.class == :lost
-        return Orbit(EPRCoordinate(typeof(gcp.r)),stat.class,stat.tau_p,stat.tau_t,path)
+        return Orbit(EPRCoordinate(typeof(gcp.r);amu=(gcp.m/mass_u),q=gcp.q),stat.class,stat.tau_p,stat.tau_t,path)
     end
     hc = HamiltonianCoordinate(M,gcp)
     KE = get_kinetic_energy(M,hc,stat.rm,stat.zm)
     tm = (stat.tau_p - stat.tm)/stat.tau_p
-    c = EPRCoordinate(KE,stat.pm,stat.rm,stat.zm,t=tm)
+    c = EPRCoordinate(KE,stat.pm,stat.rm,stat.zm;t=tm,amu=(gcp.m/mass_u),q=gcp.q)
 
     return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
 end
