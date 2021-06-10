@@ -113,7 +113,7 @@ and FOE is to be expected. The equations to compute ̂M are from Appendix B of t
 Return true if the criterion is fulfilled.
 Return false if the criterion is not fulfilled.
     
-Note! This function would have been a callback, had it not been for ForwardDiff.jacobian() being so slow).
+Note! This function would have been a callback, had it not been for ForwardDiff.jacobian() being so slow.
 """
 function gcde_check(M::AbstractEquilibrium, o::Orbit; verbose=false)
     m = o.coordinate.m # Mass of particle. kg
