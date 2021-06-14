@@ -119,7 +119,7 @@ end
 
 Integrate the full orbit up to tmax (μs) with time step dt (μs). Default tmax is 1000*cyclotron_period.
 """
-function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, kwargs...)
+function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, verbose=false, kwargs...)
 
     # Turn GCParticle into a Particle
     mc2 = gcp.m*c0^2
@@ -145,6 +145,8 @@ function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, kw
     Ω_c = cyclotron_frequency(M,gcp)
     r_gyro = cross(v,b)/Ω_c
 
+    verbose && println("|r_gyro|: $(norm(r_gyro))")
+    
     r_p = SVector{3}(gcp.r, zero(gcp.r), gcp.z) .- r_gyro
 
     r = norm(r_p[1:2])

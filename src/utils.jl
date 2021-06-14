@@ -106,16 +106,23 @@ to determine whether the usage of guiding-center drift equations (GCDE) could be
 a significant discrepancy compared to full-orbit equations (FOE). The matrix ̂M is the matrix
 found in equation (2) of D. Pfefferlé et al (2015) (https://doi.org/10.1088/0741-3335/57/5/054017)
 and the condition to be evaluated is the condition found in equation (3) of the same paper.
-In section 3 of the paper, the abritrary threshold of 0.073 is used. Here, we instead use 0.05.
-If the condition is satisfied for a threshold of 0.05, no significant discrepancy between GCDE 
+In section 3 of the paper, the abritrary threshold of 0.073 is used. The default is the same here.
+If the condition is satisfied for the threshold, no significant discrepancy between GCDE 
 and FOE is to be expected. The equations to compute ̂M are from Appendix B of the same paper (B.2).
 
 Return true if the criterion is fulfilled, and it is ok to use GCDE.
 Return false if the criterion is not fulfilled, and FOE should be used instead.
-    
-Note! This function would have been a callback, had it not been for ForwardDiff.jacobian() being so slow.
 """
-function gcde_check(M::AbstractEquilibrium, o::Orbit; verbose=false)
+function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=false)
+
+    r = M.r
+    z = M.z
+    g_rz = zeros(length(r),length(z))
+    for (ri,rr)=enumerate(r),(zi,zz)=enumerate(z)
+        g_rz[ri,zi] = M.g(M.psi_rz(rr,zz))
+    end
+    g_rz_itp = Interpolations.CubicSplineInterpolation((r,z), g_rz, extrapolation_bc=Flat()) # Poloidal current function (F=R*Bt) as a function of R,Z
+
     m = o.coordinate.m # Mass of particle. kg
     KE = o.coordinate.energy # Kinetic energy. keV
     mc2 = m*c0*c0 # Rest energy. Joule
@@ -131,33 +138,38 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; verbose=false)
         pitch = o.path.pitch[i] # Pitch of particle
 
         p_perp2 = p_rel2*(1-pitch^2) # Square of relativistic perpendicular momentum
-        B = Bfield(M, R, Z) # Magnetic field vector at particle position.
+        B = Equilibrium.Bfield(M, R, Z) # Magnetic field vector at particle position.
         Babs = norm(B) # Magnetic field magnitude. Tesla
 
         r_g = sqrt(p_perp2) / (abs(q)*Babs) # Gyroradius at particle position. Meter
 
-        jacB = ForwardDiff.jacobian(x->Bfield(M,x[1],x[3]),SVector{3}(R,zero(R),Z)) # Jacobian of magnetic field
-        #verbose && println("Jacobian(B): $(jacB)")
-        chrB = [0.0 -R*B[2] 0.0;B[2]/R B[1]/R 0.0;0.0 0.0 0.0] # The Christoffel symbol component of the covariant derivative
-        Bij = jacB .+ chrB
+        psi = M(R,Z) # Poloidal flux in Weber/rad
+        F = poloidal_current(M,psi) # Poloidal current function in meter*Tesla
+        grad_psi = SVector{2,Float64}(psi_gradient(M,R,Z)) # [dψ/dR,dψ/dZ]. SVector for efficiency
+        cc = cocos(M) # Cocos factor
+        cocos_factor = cc.sigma_RpZ*cc.sigma_Bp/((2pi)^cc.exp_Bp)
 
-        gij = [1.0 0.0 0.0;0.0 R*R 0.0;0.0 0.0 1.0]
+        grad_F = SVector{2,Float64}(Interpolations.gradient(g_rz_itp, R, Z)) # [∂F/∂r,∂F/∂z] SVector for efficiency
+        J_grad_psi = SMatrix{2,2}(ForwardDiff.jacobian(x->psi_gradient(M,x[1],x[2]),SVector{2}(R,Z))) # [d^2ψ/dr^2 d^2ψ/dzdr;d^2ψ/drdz d^2ψ/dz^2] SMatrix for efficiency
 
-        Pjk = inv(gij) .- ((1/(Babs^2)) .*[B[1]*B[1] B[1]*B[2] B[1]*B[3];B[2]*B[1] B[2]*B[2] B[2]*B[3];B[3]*B[1] B[3]*B[2] B[3]*B[3]])
+        D = SMatrix{3,3}(cocos_factor*inv(R)*(J_grad_psi[2,1]-grad_psi[2]*inv(R)),grad_F[1]-F*inv(R),cocos_factor*inv(R)*(-J_grad_psi[1,1]+inv(R)*grad_psi[1]),-F*inv(R),cocos_factor*grad_psi[2],0.0,cocos_factor*inv(R)*J_grad_psi[2,2],grad_F[2],-cocos_factor*inv(R)*J_grad_psi[1,2]) # Matrix D as in equation (2) in D. Pfefferlé et al (2015). Note D_{ij}=B_{i;j} in appendix B.
 
-        dxmdrk = [cos(φ) -R*sin(φ) 0.0;sin(φ) R*cos(φ) 0.0;0.0 0.0 1.0]
+        G = SMatrix{3,3}([1.0 0.0 0.0;0.0 inv(R*R) 0.0;0.0 0.0 1.0])
 
-        Vim = Bij*Pjk*dxmdrk
-        Mhat = Vim*inv(gij)*transpose(Vim)
-        #Mhat = Vim*gij*transpose(Vim) # Exact formulation in D. Pfefferlé et al (2015). Should be inv(gij)?
+        P = SMatrix{3,3}(G .- ((1/(Babs^2)) .*[grad_psi[2]*grad_psi[2]*inv(R^2) cocos_factor*grad_psi[2]*F*inv(R^3) -grad_psi[1]*grad_psi[2]*inv(R^2);cocos_factor*grad_psi[2]*F*inv(R^3) (F^2)*inv(R^4) -cocos_factor*F*grad_psi[1]*inv(R^3);-grad_psi[1]*grad_psi[2]*inv(R^2) -cocos_factor*F*grad_psi[1]*inv(R^3) grad_psi[1]*grad_psi[1]*inv(R^2)]))
 
-        λmax = maximum(eigvals(Mhat)) # Could use λmax = tr(Mhat) instead to speed up (trace of matrix), but less accurate.
+        Λ  = SMatrix{3,3}([cos(φ) -R*sin(φ) 0.0;sin(φ) R*cos(φ) 0.0;0.0 0.0 1.0])
+
+        Mhat = transpose(Λ)*transpose(P)*transpose(D)*G*D*P*Λ
+
+        λmax = maximum(eigvals(Array(Mhat))) # Could use λmax = tr(Mhat) instead to speed up. But less accurate.
 
         criterion = sqrt(λmax)*r_g / Babs
 
-        if criterion > 0.05 # criterion violated
+        if criterion > threshold # criterion violated
             verbose && println("criterion violated!")
             verbose && println("criterion: $(criterion)")
+            verbose && println("threshold: $(threshold)")
             verbose && println("r_g: $(r_g) m")
             verbose && println("|B|: $(Babs) T")
             verbose && println("√(λmax): $(sqrt(λmax))")
