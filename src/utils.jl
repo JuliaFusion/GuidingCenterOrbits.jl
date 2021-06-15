@@ -134,6 +134,7 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=f
     p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Square of relativistic momentum
     q = o.coordinate.q*e0 # Particle charge. Coulomb
 
+    maxcrit = 0.0
     for i=1:length(o.path.r)
         verbose && println("Evaluating gcde criterion for orbit path position $(i) of $(length(o.path.r))... ")
         R = o.path.r[i] # Major radius position of particle
@@ -170,17 +171,23 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=f
 
         criterion = sqrt(λmax)*r_g / Babs
 
+        if criterion > maxcrit
+            maxcrit = criterion
+        end
+
         if criterion > threshold # criterion violated
-            verbose && println("criterion violated!")
-            verbose && println("criterion: $(criterion)")
-            verbose && println("threshold: $(threshold)")
+            verbose && println("Criterion violated!")
+            verbose && println("Criterion: $(criterion)")
+            verbose && println("Threshold: $(threshold)")
             verbose && println("r_g: $(r_g) m")
             verbose && println("|B|: $(Babs) T")
             verbose && println("√(λmax): $(sqrt(λmax))")
             return false
         end
     end
-
+    verbose && println("Criterion was not violated at any point along the orbit path.")
+    verbose && println("maximum(criterion) < threshold: $(maxcrit) < $(threshold)")
+    verbose && println("gcde ok to use!")
     return true
 end
 
