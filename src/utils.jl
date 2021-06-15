@@ -113,15 +113,19 @@ and FOE is to be expected. The equations to compute ̂M are from Appendix B of t
 Return true if the criterion is fulfilled, and it is ok to use GCDE.
 Return false if the criterion is not fulfilled, and FOE should be used instead.
 """
-function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=false)
+function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=false, nr = 33, nz = 33, kappa=1.4)
 
-    r = M.r
-    z = M.z
+    (typeof(M) <: SolovevEquilibrium) && (kappa=M.kappa)
+    Rmax = maximum(o.path.r)
+    Rmin = minimum(o.path.r)
+    dR = (Rmax-Rmin)/nr
+    r = range(Rmin-dR,stop=Rmax+dR,length=nr) # A reasonable r range
+    z = kappa*range(Rmin-dR,stop=Rmax+dR,length=nr) # A reasonable z range
     g_rz = zeros(length(r),length(z))
     for (ri,rr)=enumerate(r),(zi,zz)=enumerate(z)
-        g_rz[ri,zi] = M.g(M.psi_rz(rr,zz))
+        g_rz[ri,zi] = poloidal_current(M,M(rr,zz))
     end
-    g_rz_itp = Interpolations.CubicSplineInterpolation((r,z), g_rz, extrapolation_bc=Flat()) # Poloidal current function (F=R*Bt) as a function of R,Z
+    g_rz_itp = Interpolations.CubicSplineInterpolation((r,z), g_rz, extrapolation_bc=Interpolations.Flat()) # Poloidal current function (F=R*Bt) as a function of R,Z
 
     m = o.coordinate.m # Mass of particle. kg
     KE = o.coordinate.energy # Kinetic energy. keV
