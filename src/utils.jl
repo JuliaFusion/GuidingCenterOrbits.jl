@@ -176,18 +176,18 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=f
         end
 
         if criterion > threshold # criterion violated
-            verbose && println("Criterion violated!")
-            verbose && println("Criterion: $(criterion)")
-            verbose && println("Threshold: $(threshold)")
-            verbose && println("r_g: $(r_g) m")
-            verbose && println("|B|: $(Babs) T")
-            verbose && println("√(λmax): $(sqrt(λmax))")
+            verbose && println("--- Criterion violated! ---")
+            verbose && println("Criterion > Threshold: $(criterion) > $(threshold)")
+            verbose && println("- Gyroradius (r_g) at bad position: $(r_g) m")
+            verbose && println("- |B| at bad position: $(Babs) T")
+            verbose && println("- √(λmax) at bad position: $(sqrt(λmax))")
+            verbose && println("√(λmax) * r_g / |B| > Threshold")
             return false
         end
     end
-    verbose && println("Criterion was not violated at any point along the orbit path.")
+    verbose && println("- Criterion was not violated at any point along the orbit path.")
     verbose && println("maximum(criterion) < threshold: $(maxcrit) < $(threshold)")
-    verbose && println("gcde ok to use!")
+    verbose && println("- gcde ok to use!")
     return true
 end
 
