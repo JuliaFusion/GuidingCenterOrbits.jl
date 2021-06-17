@@ -172,7 +172,7 @@ end
 Make and return an ordinary differential equation function for the guiding-centre motion.
 """
 function make_gc_ode(M::AbstractEquilibrium, gcp::GCParticle, stat::GCStatus,vacuum::Bool,drift::Bool)
-    ir, iphi, iz = cylindrical_cocos_indices(cocos(M))
+    ir::Int, iphi::Int, iz::Int = cylindrical_cocos_indices(cocos(M))
     ode = function f(y,p::Bool,t)
         stat
         v_gc = gc_velocity(M, gcp, y[ir], y[iz], y[4], y[5],vacuum,drift)
