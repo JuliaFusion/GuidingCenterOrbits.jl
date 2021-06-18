@@ -121,48 +121,9 @@ Integrate the full orbit up to tmax (μs) with time step dt (μs). Default tmax 
 """
 function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, kwargs...)
 
-    # Turn GCParticle into a Particle
-    mc2 = gcp.m*c0^2
+    v = velocity(M, gcp, gamma)
 
-    p0 = sqrt(((1e3*e0*gcp.energy + mc2)^2 - mc2^2)/(c0*c0)) # The initial particle momentum
-    if abs(gcp.pitch) == 1.0
-        pitch0 = sign(gcp.pitch)*prevfloat(abs(gcp.pitch))
-    else
-        pitch0 = gcp.pitch
-    end
-
-    p_para0 = p0*pitch0*B0Ip_sign(M) # The initial parallel momentum
-    p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
-
-    B = Bfield(M,gcp.r,0.0,gcp.z)
-    Babs = norm(B)
-    b = B/Babs
-    a, c = perpendicular_vectors(B)
-
-    pvec = p_perp0*cos(gamma)*a .+ p_perp0*sin(gamma)*c .+ p_para0*b
-
-    v = pvec/(gcp.m*lorentz_factor(gcp))
-
-    # First order
-    Ω_c = cyclotron_frequency(M,gcp)
-    r_gyro = cross(v,b)/Ω_c
-
-    # Second order
-    # Belova, E. V., N. N. Gorelenkov, and C. Z. Cheng. "Self-consistent equilibrium model of low aspect-
-    # ratio toroidal plasma with energetic beam ions." Physics of Plasmas (1994-present) 10.8 (2003):
-    vpara = dot(v,b)
-    cB = curlB(M,gcp.r,0.0,gcp.z)/Babs
-    term1 = vpara*dot(b,cB)/Ω_c
-    gB = gradB(M,gcp.r,0.0,gcp.z)
-    term2 = -dot(r_gyro,gB)/(2*Babs)
-
-    correction = (1 - term1 - term2)
-    if (correction <= 0.0) || (correction >= 2.0)
-        @warn "Gyro correction results in negative distances or too large of a shift: $(correction)"
-    end
-
-    r_gyro = r_gyro*correction
-
+    r_gyro = gyro_step(M, gcp, gamma)
 
     r_p = SVector{3}(gcp.r, zero(gcp.r), gcp.z) .- r_gyro
 
