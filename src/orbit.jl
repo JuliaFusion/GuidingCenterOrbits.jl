@@ -519,7 +519,7 @@ function get_orbit(M::AbstractEquilibrium, gcp::GCParticle; kwargs...)
     gcvalid = gcde_check(M, gcp, path)
 
     if stat.class == :incomplete || stat.class == :lost
-        return Orbit(EPRCoordinate(typeof(gcp.r);amu=(gcp.m/mass_u),q=gcp.q),stat.class,stat.tau_p,stat.tau_t,path)
+        return Orbit(EPRCoordinate(typeof(gcp.r);amu=(gcp.m/mass_u),q=gcp.q),stat.class,stat.tau_p,stat.tau_t,path,gcvalid)
     end
     hc = HamiltonianCoordinate(M,gcp)
     KE = get_kinetic_energy(M,hc,stat.rm,stat.zm)
