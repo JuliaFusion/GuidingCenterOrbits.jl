@@ -55,7 +55,7 @@ export OrbitProjection, orbit_projection, in_orbit
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 export lorentz_factor, cyclotron_frequency, cyclotron_period, normalize
-export perpendicular_vectors, gyro_step, larmor_radius
+export perpendicular_vectors, gyro_step, larmor_radius, gcde_check
 
 using ForwardDiff
 using ForwardDiff: Dual, partials, value

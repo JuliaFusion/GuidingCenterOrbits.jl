@@ -52,10 +52,11 @@ struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
     tau_p::T
     tau_t::T
     path::OrbitPath{T}
+    gcvalid::Bool
 end
 
 function Orbit(c::AbstractOrbitCoordinate{T},class=:incomplete) where {T}
-    return Orbit(c, class, zero(T), zero(T), OrbitPath(T))
+    return Orbit(c, class, zero(T), zero(T), OrbitPath(T), false)
 end
 
 Base.length(o::Orbit) = length(o.path.r)
@@ -515,6 +516,7 @@ end
 
 function get_orbit(M::AbstractEquilibrium, gcp::GCParticle; kwargs...)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=true, kwargs...)
+    gcvalid = gcde_check(M, gcp, path)
 
     if stat.class == :incomplete || stat.class == :lost
         return Orbit(EPRCoordinate(typeof(gcp.r);amu=(gcp.m/mass_u),q=gcp.q),stat.class,stat.tau_p,stat.tau_t,path)
@@ -524,12 +526,14 @@ function get_orbit(M::AbstractEquilibrium, gcp::GCParticle; kwargs...)
     tm = (stat.tau_p - stat.tm)/stat.tau_p
     c = EPRCoordinate(KE,stat.pm,stat.rm,stat.zm;t=tm,amu=(gcp.m/mass_u),q=gcp.q)
 
-    return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
+    return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path,gcvalid)
 end
 
 function get_orbit(M::AbstractEquilibrium, c::EPRCoordinate; hard = false, rtol=1e-4, kwargs...)
     gcp = GCParticle(c)
     path, stat = integrate(M, gcp; one_transit=true, r_callback=false, kwargs...)
+    gcvalid = gcde_check(M, gcp, path)
+
     rmax = stat.rm
     if stat.class != :incomplete && stat.class != :lost
         if rmax > c.r && (hard || !isapprox(rmax,c.r,rtol=rtol))
@@ -539,7 +543,7 @@ function get_orbit(M::AbstractEquilibrium, c::EPRCoordinate; hard = false, rtol=
         stat.tau_p=zero(stat.tau_p)
         stat.tau_t=zero(stat.tau_t)
     end
-    return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path)
+    return Orbit(c,stat.class,stat.tau_p,stat.tau_t,path,gcvalid)
 end
 
 function Base.show(io::IO, orbit::Orbit)
@@ -550,5 +554,6 @@ function Base.show(io::IO, orbit::Orbit)
 
     println(io, class_str*"Orbit:")
     @printf(io, " τ_p= %.3f μs\n", orbit.tau_p*1e6)
-    @printf(io, " τ_t= %.3f μs", orbit.tau_t*1e6)
+    @printf(io, " τ_t= %.3f μs\n", orbit.tau_t*1e6)
+    print(io,   " gc-valid: $(orbit.gcvalid)")
 end

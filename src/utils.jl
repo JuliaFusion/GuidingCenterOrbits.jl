@@ -102,34 +102,33 @@ gcde_check(M, o; verbose=false)
 
 For each point along the orbit path, compute the gyro-radius r_g, the magnetic field
 amplitude B and the square root of the maximum eigenvalue of the matrix ̂M. Use these quantities
-to determine whether the usage of guiding-center drift equations (GCDE) could be expected to produce 
+to determine whether the usage of guiding-center drift equations (GCDE) could be expected to produce
 a significant discrepancy compared to full-orbit equations (FOE). The matrix ̂M is the matrix
 found in equation (2) of D. Pfefferlé et al (2015) (https://doi.org/10.1088/0741-3335/57/5/054017)
 and the condition to be evaluated is the condition found in equation (3) of the same paper.
 In section 3 of the paper, the abritrary threshold of 0.073 is used. The default is the same here.
-If the condition is satisfied for the threshold, no significant discrepancy between GCDE 
+If the condition is satisfied for the threshold, no significant discrepancy between GCDE
 and FOE is to be expected. The equations to compute ̂M are from Appendix B of the same paper (B.2).
 
 Return true if the criterion is fulfilled, and it is ok to use GCDE.
 Return false if the criterion is not fulfilled, and FOE should be used instead.
 """
-function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=false)
+function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; threshold=0.073, verbose=false)
 
     g_rz = (x) -> poloidal_current(M, M(x[1],x[2])) # Poloidal current function (F=R*Bt) as a function of R,Z
-    m = o.coordinate.m # Mass of particle. kg
-    KE = o.coordinate.energy # Kinetic energy. keV
+    m = gcp.m # Mass of particle. kg
+    KE = gcp.energy # Kinetic energy. keV
     mc2 = m*c0*c0 # Rest energy. Joule
     KE_j = e0*KE*1e3 # Kinetic energy. Joule
     p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Square of relativistic momentum
-    q = o.coordinate.q*e0 # Particle charge. Coulomb
+    q = gcp.q*e0 # Particle charge. Coulomb
 
     maxcrit = 0.0
-    for i=1:length(o.path.r)
-        verbose && println("Evaluating gcde criterion for orbit path position $(i) of $(length(o.path.r))... ")
-        R = o.path.r[i] # Major radius position of particle
-        φ = o.path.phi[i] # Toroidal angle position of particle
-        Z = o.path.z[i] # Vertical position of particle
-        pitch = o.path.pitch[i] # Pitch of particle
+    for i=1:length(path)
+        R = path.r[i] # Major radius position of particle
+        φ = path.phi[i] # Toroidal angle position of particle
+        Z = path.z[i] # Vertical position of particle
+        pitch = path.pitch[i] # Pitch of particle
 
         p_perp2 = p_rel2*(1-pitch^2) # Square of relativistic perpendicular momentum
         B = Equilibrium.Bfield(M, R, Z) # Magnetic field vector at particle position.
@@ -142,7 +141,7 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=f
         grad_psi = SVector{2,Float64}(psi_gradient(M,R,Z)) # [dψ/dR,dψ/dZ]. SVector for efficiency
         cc = cocos(M) # Cocos factor
         cocos_factor = cc.sigma_RpZ*cc.sigma_Bp/((2pi)^cc.exp_Bp)
-        
+
         grad_F = SVector{2,Float64}(ForwardDiff.gradient(g_rz,SVector{2}(R,Z))) # [∂F/∂r,∂F/∂z] SVector for efficiency
         J_grad_psi = SMatrix{2,2}(ForwardDiff.jacobian(x->psi_gradient(M,x[1],x[2]),SVector{2}(R,Z))) # [d^2ψ/dr^2 d^2ψ/dzdr;d^2ψ/drdz d^2ψ/dz^2] SMatrix for efficiency
 
@@ -178,6 +177,10 @@ function gcde_check(M::AbstractEquilibrium, o::Orbit; threshold=0.073, verbose=f
     verbose && println("maximum(criterion) < threshold: $(maxcrit) < $(threshold)")
     verbose && println("- gcde ok to use!")
     return true
+end
+
+function gcde_check(M::AbstractEquilibrium, o::Orbit; kwargs...)
+    gcde_check(M, GCParticle(o.coordinate), o.path; kwargs...)
 end
 
 function hits_wall_path(path::OrbitPath, wall::Wall)
