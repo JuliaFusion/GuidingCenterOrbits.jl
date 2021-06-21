@@ -116,6 +116,7 @@ Return false if the criterion is not fulfilled, and FOE should be used instead.
 function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; threshold=0.073, verbose=false)
 
     g_rz = (x) -> poloidal_current(M, M(x[1],x[2])) # Poloidal current function (F=R*Bt) as a function of R,Z
+    dpsi_rz = (x) -> psi_gradient(M, x[1], x[2]) # Poloidal current function (F=R*Bt) as a function of R,Z
     m = gcp.m # Mass of particle. kg
     KE = gcp.energy # Kinetic energy. keV
     mc2 = m*c0*c0 # Rest energy. Joule
@@ -143,7 +144,7 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
         cocos_factor = cc.sigma_RpZ*cc.sigma_Bp/((2pi)^cc.exp_Bp)
 
         grad_F = SVector{2,Float64}(ForwardDiff.gradient(g_rz,SVector{2}(R,Z))) # [∂F/∂r,∂F/∂z] SVector for efficiency
-        J_grad_psi = SMatrix{2,2}(ForwardDiff.jacobian(x->psi_gradient(M,x[1],x[2]),SVector{2}(R,Z))) # [d^2ψ/dr^2 d^2ψ/dzdr;d^2ψ/drdz d^2ψ/dz^2] SMatrix for efficiency
+        J_grad_psi = SMatrix{2,2}(ForwardDiff.jacobian(dpsi_rz,SVector{2}(R,Z))) # [d^2ψ/dr^2 d^2ψ/dzdr;d^2ψ/drdz d^2ψ/dz^2] SMatrix for efficiency
 
         D = SMatrix{3,3}(cocos_factor*inv(R)*(J_grad_psi[2,1]-grad_psi[2]*inv(R)),grad_F[1]-F*inv(R),cocos_factor*inv(R)*(-J_grad_psi[1,1]+inv(R)*grad_psi[1]),-F*inv(R),cocos_factor*grad_psi[2],0.0,cocos_factor*inv(R)*J_grad_psi[2,2],grad_F[2],-cocos_factor*inv(R)*J_grad_psi[1,2]) # Matrix D as in equation (2) in D. Pfefferlé et al (2015). Note D_{ij}=B_{i;j} in appendix B.
 
@@ -153,7 +154,8 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
 
         Λ  = SMatrix{3,3}([cos(φ) -R*sin(φ) 0.0;sin(φ) R*cos(φ) 0.0;0.0 0.0 1.0])
 
-        Mhat = transpose(Λ)*transpose(P)*transpose(D)*G*D*P*Λ
+        DPL = D*P*Λ
+        Mhat = transpose(DPL)*G*DPL
 
         λmax = maximum(eigvals(Array(Mhat))) # Could use λmax = tr(Mhat) instead to speed up. But less accurate.
 
@@ -164,18 +166,22 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
         end
 
         if criterion > threshold # criterion violated
-            verbose && println("--- Criterion violated! ---")
-            verbose && println("Criterion > Threshold: $(criterion) > $(threshold)")
-            verbose && println("- Gyroradius (r_g) at bad position: $(r_g) m")
-            verbose && println("- |B| at bad position: $(Babs) T")
-            verbose && println("- √(λmax) at bad position: $(sqrt(λmax))")
-            verbose && println("√(λmax) * r_g / |B| > Threshold")
+            if verbose
+                println("--- Criterion violated! ---")
+                println("Criterion > Threshold: $(criterion) > $(threshold)")
+                println("- Gyroradius (r_g) at bad position: $(r_g) m")
+                println("- |B| at bad position: $(Babs) T")
+                println("- √(λmax) at bad position: $(sqrt(λmax))")
+                println("√(λmax) * r_g / |B| > Threshold")
+            end
             return false
         end
     end
-    verbose && println("- Criterion was not violated at any point along the orbit path.")
-    verbose && println("maximum(criterion) < threshold: $(maxcrit) < $(threshold)")
-    verbose && println("- gcde ok to use!")
+    if verbose
+        println("- Criterion was not violated at any point along the orbit path.")
+        println("maximum(criterion) < threshold: $(maxcrit) < $(threshold)")
+        println("- gcde ok to use!")
+    end
     return true
 end
 
