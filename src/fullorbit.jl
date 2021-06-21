@@ -19,12 +19,12 @@ end
 
 Base.length(op::FullOrbitPath) = length(op.r)
 
-function borispush(M, m, v, u, dt)
+function borispush(M, m, q, v, u, dt)
         x = u[1]
         y = u[2]
         z = u[3]
 
-        q_m_half_dt = (0.5*dt*e0/m)
+        q_m_half_dt = (0.5*dt*q*e0/m)
 
         B, E = fields(M,x,y,z)
 
@@ -74,12 +74,12 @@ function integrate(M::AbstractEquilibrium, pc::Particle; dt= 0.01, tmax = 1000)
     x_arr[1] = u[1]
     y_arr[1] = u[2]
     z_arr[1] = u[3]
-    v = borispush(M,pc.m,v,u,-0.5*dt_sec)
+    v = borispush(M,pc.m,pc.q,v,u,-0.5*dt_sec)
     vx_arr[1] = v[1]
     vy_arr[1] = v[2]
     vz_arr[1] = v[3]
     for i=2:nstep
-        v = borispush(M,pc.m,v,u,dt_sec)
+        v = borispush(M,pc.m,pc.q,v,u,dt_sec)
         x_arr[i] = x_arr[i-1] + v[1]*dt_sec
         y_arr[i] = y_arr[i-1] + v[2]*dt_sec
         z_arr[i] = z_arr[i-1] + v[3]*dt_sec
@@ -88,7 +88,7 @@ function integrate(M::AbstractEquilibrium, pc::Particle; dt= 0.01, tmax = 1000)
         vy_arr[i] = v[2]
         vz_arr[i] = v[3]
     end
-    v = borispush(M,pc.m,v,u,0.5*dt_sec)
+    v = borispush(M,pc.m,pc.q,v,u,0.5*dt_sec)
     vx_arr[end] = v[1]
     vy_arr[end] = v[2]
     vz_arr[end] = v[3]
@@ -121,29 +121,9 @@ Integrate the full orbit up to tmax (μs) with time step dt (μs). Default tmax 
 """
 function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, verbose=false, kwargs...)
 
-    # Turn GCParticle into a Particle
-    mc2 = gcp.m*c0^2
+    v = velocity(M, gcp, gamma)
 
-    p0 = sqrt(((1e3*e0*gcp.energy + mc2)^2 - mc2^2)/(c0*c0)) # The initial particle momentum
-    if abs(gcp.pitch) == 1.0
-        pitch0 = sign(gcp.pitch)*prevfloat(abs(gcp.pitch))
-    else
-        pitch0 = gcp.pitch
-    end
-
-    p_para0 = p0*pitch0*B0Ip_sign(M) # The initial parallel momentum
-    p_perp0 = p0*sqrt(1.0 - pitch0^2) # The initial perpendicular momentum
-
-    B = Bfield(M,gcp.r,0.0,gcp.z)
-    b = B/norm(B)
-    a, c = perpendicular_vectors(B)
-
-    pvec = p_perp0*cos(gamma)*a .+ p_perp0*sin(gamma)*c .+ p_para0*b
-
-    v = pvec/(gcp.m*lorentz_factor(gcp))
-
-    Ω_c = cyclotron_frequency(M,gcp)
-    r_gyro = cross(v,b)/Ω_c
+    r_gyro = gyro_step(M, gcp, gamma)
 
     verbose && println("|r_gyro|: $(norm(r_gyro))")
     
@@ -173,10 +153,10 @@ function hits_wall(M, pc::Particle, wall; dt=1e-3, tmax=100)
     u = SVector{3}([pc.r*cp,pc.r*sp,z])
     v = SVector{3}([pc.vr*cp - pc.vt*sp, pc.vr*sp + pc.vt*cp,pc.vz])
     hit = false
-    v = borispush(M,pc.m,v,u,-0.5*dt_sec)
+    v = borispush(M,pc.m,pc.q,v,u,-0.5*dt_sec)
     T = 0.0
     for i=1:nstep
-        v = borispush(M,pc.m,v,u,dt_sec)
+        v = borispush(M,pc.m,pc.q,v,u,dt_sec)
         u = u .+ v*dt_sec
         rr = sqrt(u[1]^2 + u[2]^2)
         zz = u[3]
