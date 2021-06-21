@@ -119,12 +119,14 @@ end
 
 Integrate the full orbit up to tmax (μs) with time step dt (μs). Default tmax is 1000*cyclotron_period.
 """
-function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, kwargs...)
+function get_full_orbit(M::AbstractEquilibrium, gcp::GCParticle; gamma = 0.0, verbose=false, kwargs...)
 
     v = velocity(M, gcp, gamma)
 
     r_gyro = gyro_step(M, gcp, gamma)
 
+    verbose && println("|r_gyro|: $(norm(r_gyro))")
+    
     r_p = SVector{3}(gcp.r, zero(gcp.r), gcp.z) .- r_gyro
 
     r = norm(r_p[1:2])

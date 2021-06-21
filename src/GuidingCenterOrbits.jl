@@ -9,6 +9,7 @@ using Statistics
 
 using Equilibrium
 using OrdinaryDiffEq
+using ForwardDiff
 using Optim
 using Base.Iterators
 using Interpolations
@@ -26,6 +27,7 @@ const H1_amu = 1.007276466879 # amu
 const H2_amu = 2.0141017778 # amu
 const H3_amu = 3.01550071632 # amu
 const He3_amu = 3.01602931914 # amu
+const He4_amu = 4.00150617913 # amu
 const B5_amu = 10.81 # amu
 const C6_amu = 12.011 # amu
 

@@ -27,8 +27,12 @@ function Triton(args...)
     Particle(promote(args...)...,H3_amu*mass_u,1)
 end
 
-function Alpha(args...)
+function Helium3(args...)
     Particle(promote(args...)...,He3_amu*mass_u,2)
+end
+
+function Alpha(args...)
+    Particle(promote(args...)...,He4_amu*mass_u,2)
 end
 
 struct GCParticle{T} <: AbstractParticle{T}
@@ -56,8 +60,12 @@ function GCTriton(args...)
     GCParticle(promote(args...)...,H3_amu*mass_u,1)
 end
 
+function GCHelium3(args...)
+    GCParticle(Promote(args...)...,He3_amu*mass_u,2)
+end
+
 function GCAlpha(args...)
-    GCParticle(promote(args...)...,He3_amu*mass_u,2)
+    GCParticle(promote(args...)...,He4_amu*mass_u,2)
 end
 
 struct EPRParticle{T} <: AbstractParticle{T}
