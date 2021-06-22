@@ -132,30 +132,29 @@ Return false if the criterion is not fulfilled, and FOE should be used instead.
 function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; threshold=0.073, verbose=false)
 
     g_rz = (x) -> poloidal_current(M, M(x[1],x[2])) # Poloidal current function (F=R*Bt) as a function of R,Z
-    dpsi_rz = (x) -> psi_gradient(M, x[1], x[2]) # Poloidal current function (F=R*Bt) as a function of R,Z
+    dpsi_rz = (x) -> psi_gradient(M, x[1], x[2]) # [dψ/dR,dψ/dZ] as a function of R,Z
     m = gcp.m # Mass of particle. kg
     KE = gcp.energy # Kinetic energy. keV
     mc2 = m*c0*c0 # Rest energy. Joule
     KE_j = e0*KE*1e3 # Kinetic energy. Joule
-    p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Square of relativistic momentum
+    p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Square of relativistic momentum. kg^2 m^2 s^-2
     q = gcp.q*e0 # Particle charge. Coulomb
 
-    maxcrit = 0.0
-    Mhat = zeros(3,3)
+    maxcrit = 0.0 # To keep track of the maximum of criterion violation
+    #Mhat = zeros(3,3) # Alternative function execution approach
     for i=1:length(path)
-        R = path.r[i] # Major radius position of particle
-        φ = path.phi[i] # Toroidal angle position of particle
-        Z = path.z[i] # Vertical position of particle
-        pitch = path.pitch[i] # Pitch of particle
+        R = path.r[i] # Major radius position of particle. m
+        φ = path.phi[i] # Toroidal angle position of particle. -
+        Z = path.z[i] # Vertical position of particle. m
+        pitch = path.pitch[i] # Pitch of particle. -
 
-        p_perp2 = p_rel2*(1-pitch^2) # Square of relativistic perpendicular momentum
+        p_perp2 = p_rel2*(1-pitch^2) # Square of relativistic perpendicular momentum. kg^2 m^2 s^-2
         B = Equilibrium.Bfield(M, R, Z) # Magnetic field vector at particle position.
         Babs = norm(B) # Magnetic field magnitude. Tesla
 
-        r_g = sqrt(p_perp2) / (abs(q)*Babs) # Gyroradius at particle position. Meter
+        r_g = sqrt(p_perp2) / (abs(q)*Babs) # Gyroradius at particle position. m
 
-        psi = M(R,Z) # Poloidal flux in Weber/rad
-        F = poloidal_current(M,psi) # Poloidal current function in meter*Tesla
+        F = g_rz(SVector{2,Float64}(R,Z)) # Poloidal current function in meter*Tesla
         grad_psi = SVector{2,Float64}(psi_gradient(M,R,Z)) # [dψ/dR,dψ/dZ]. SVector for efficiency
         cc = cocos(M) # Cocos factor
         cocos_factor = cc.sigma_RpZ*cc.sigma_Bp/((2pi)^cc.exp_Bp)
@@ -195,9 +194,10 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
             if verbose
                 println("--- Criterion violated! ---")
                 println("Criterion > Threshold: $(criterion) > $(threshold)")
+                println("- Orbit path index at bad position: $(i)")
                 println("- Gyroradius (r_g) at bad position: $(r_g) m")
                 println("- |B| at bad position: $(Babs) T")
-                println("- √(λmax) at bad position: $(sqrt(λmax))")
+                println("- √(λmax) at bad position: $(sqrt(λmax)) T/m")
                 println("√(λmax) * r_g / |B| > Threshold")
             end
             return false
