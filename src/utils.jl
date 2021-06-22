@@ -154,7 +154,7 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
 
         r_g = sqrt(p_perp2) / (abs(q)*Babs) # Gyroradius at particle position. m
 
-        F = g_rz(M,R,Z) # Poloidal current function in meter*Tesla
+        F = g_rz(R,Z) # Poloidal current function in meter*Tesla
         grad_psi = SVector{2,Float64}(psi_gradient(M,R,Z)) # [dψ/dR,dψ/dZ]. SVector for efficiency
         cc = cocos(M) # Cocos factor
         cocos_factor = cc.sigma_RpZ*cc.sigma_Bp/((2pi)^cc.exp_Bp)
