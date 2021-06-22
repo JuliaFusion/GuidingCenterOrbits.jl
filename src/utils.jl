@@ -97,6 +97,22 @@ function classify(path::OrbitPath, axis)
 end
 
 """
+    _eigmax(A) -> λ_max
+
+Returns approximate largest eigval for a 3x3 matrix using power iteration
+"""
+function _eigmax(A::SMatrix{3,3}; N=10_000_000)
+    b_k = SVector{3}(1.0,0.0,0.0)
+    for i=1:N
+        # calculate the matrix-by-vector product Ab
+        b_k = A*b_k
+        b_k = b_k/norm(b_k)
+    end
+    λ_k = (b_k'*A*b_k)/(b_k'*b_k)
+    return λ_k
+end
+
+"""
 
 gcde_check(M, o; verbose=false)
 
@@ -164,9 +180,10 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
         Λ = SMatrix{3,3}(cos(φ), sin(φ), 0.0, -R*sin(φ), R*cos(φ), 0.0, 0.0, 0.0,1.0)
 
         DPL = D*P*Λ
-        Mhat .= transpose(DPL)*G*DPL
 
-        λmax = maximum(eigvals(Mhat)) # Could use λmax = tr(Mhat) instead to speed up. But less accurate.
+        #Mhat .= transpose(DPL)*G*DPL
+        #λmax = maximum(eigvals(Mhat)) # Could use λmax = tr(Mhat) instead to speed up. But less accurate.
+        λmax = _eigmax(transpose(DPL)*G*DPL,N=100)
 
         criterion = sqrt(λmax)*r_g / Babs
 
