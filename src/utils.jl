@@ -125,6 +125,7 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
     q = gcp.q*e0 # Particle charge. Coulomb
 
     maxcrit = 0.0
+    Mhat = zeros(3,3)
     for i=1:length(path)
         R = path.r[i] # Major radius position of particle
         φ = path.phi[i] # Toroidal angle position of particle
@@ -148,16 +149,24 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
 
         D = SMatrix{3,3}(cocos_factor*inv(R)*(J_grad_psi[2,1]-grad_psi[2]*inv(R)),grad_F[1]-F*inv(R),cocos_factor*inv(R)*(-J_grad_psi[1,1]+inv(R)*grad_psi[1]),-F*inv(R),cocos_factor*grad_psi[2],0.0,cocos_factor*inv(R)*J_grad_psi[2,2],grad_F[2],-cocos_factor*inv(R)*J_grad_psi[1,2]) # Matrix D as in equation (2) in D. Pfefferlé et al (2015). Note D_{ij}=B_{i;j} in appendix B.
 
-        G = SMatrix{3,3}([1.0 0.0 0.0;0.0 inv(R*R) 0.0;0.0 0.0 1.0])
+        G = SMatrix{3,3}(1.0,0.0,0.0,0.0,inv(R*R),0.0,0.0,0.0,1.0)
 
-        P = SMatrix{3,3}(G .- ((1/(Babs^2)) .*[grad_psi[2]*grad_psi[2]*inv(R^2) cocos_factor*grad_psi[2]*F*inv(R^3) -grad_psi[1]*grad_psi[2]*inv(R^2);cocos_factor*grad_psi[2]*F*inv(R^3) (F^2)*inv(R^4) -cocos_factor*F*grad_psi[1]*inv(R^3);-grad_psi[1]*grad_psi[2]*inv(R^2) -cocos_factor*F*grad_psi[1]*inv(R^3) grad_psi[1]*grad_psi[1]*inv(R^2)]))
+        P = G .- inv(Babs^2)*SMatrix{3,3}(grad_psi[2]*grad_psi[2]*inv(R^2),
+                                          cocos_factor*grad_psi[2]*F*inv(R^3),
+                                          -grad_psi[1]*grad_psi[2]*inv(R^2),
+                                          cocos_factor*grad_psi[2]*F*inv(R^3),
+                                          (F^2)*inv(R^4),
+                                          -cocos_factor*F*grad_psi[1]*inv(R^3),
+                                          -grad_psi[1]*grad_psi[2]*inv(R^2),
+                                          -cocos_factor*F*grad_psi[1]*inv(R^3),
+                                          grad_psi[1]*grad_psi[1]*inv(R^2))
 
-        Λ  = SMatrix{3,3}([cos(φ) -R*sin(φ) 0.0;sin(φ) R*cos(φ) 0.0;0.0 0.0 1.0])
+        Λ = SMatrix{3,3}(cos(φ), sin(φ), 0.0, -R*sin(φ), R*cos(φ), 0.0, 0.0, 0.0,1.0)
 
         DPL = D*P*Λ
-        Mhat = transpose(DPL)*G*DPL
+        Mhat .= transpose(DPL)*G*DPL
 
-        λmax = maximum(eigvals(Array(Mhat))) # Could use λmax = tr(Mhat) instead to speed up. But less accurate.
+        λmax = maximum(eigvals(Mhat)) # Could use λmax = tr(Mhat) instead to speed up. But less accurate.
 
         criterion = sqrt(λmax)*r_g / Babs
 
