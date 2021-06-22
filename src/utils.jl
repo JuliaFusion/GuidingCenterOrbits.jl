@@ -194,6 +194,7 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
             if verbose
                 println("--- Criterion violated! ---")
                 println("Criterion > Threshold: $(criterion) > $(threshold)")
+                println("- Orbit path index at bad position: $(i)")
                 println("- Gyroradius (r_g) at bad position: $(r_g) m")
                 println("- |B| at bad position: $(Babs) T")
                 println("- √(λmax) at bad position: $(sqrt(λmax)) T/m")
