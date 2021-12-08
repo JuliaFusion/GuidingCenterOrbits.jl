@@ -26,10 +26,10 @@ function EPRCoordinate(M::AbstractEquilibrium, energy, pitch, R ; amu=H2_amu, q=
     rmaxis, zaxis = magnetic_axis(M)
     zmax = zaxis + dz
     zmin = zaxis - dz
-    if M.cocos.cocos in [1,11,2,12,5,15,6,16]
-        res = optimize(x->M(R,x), zmin, zmax)
+    if (M.psi[2]-M.psi[1]) > 0.0
+        res = optimize(x->M(R,x), zmin, zmax) # Minimize
     else
-        res = optimize(x->-M(R,x), zmin, zmax)
+        res = optimize(x->-M(R,x), zmin, zmax) # Maximize
     end
     Z = Optim.minimizer(res)
     (Z == zmax || Z == zmin) && error(@sprintf("Unable to find starting Z value with dz = %.2f. Increase dz",dz))
