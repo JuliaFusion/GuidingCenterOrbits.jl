@@ -51,6 +51,34 @@ function Base.show(io::IO, c::EPRCoordinate)
     @printf(io," Rmax = %.3f m",c.r)
 end
 
+#This will fill out orbits in the PSGrid, but not the orbit grid
+#I want it to just be 
+struct GCEPRCoordinate
+    energy::Float64
+    pitch::Float64
+    r::Float64
+    z::Float64
+    pitch_m::Float64
+    r_m::Float64
+    z_m::Float64
+    t::Float64
+    class::Symbol
+    tau_p::Float64
+    tau_t::Float64
+    jacdet::Float64
+    gcvalid::Bool
+    m::Float64
+    q::Int
+end
+
+function GCEPRCoordinate(args...; jacdet=0.0, gcvalid=true, m=H2_amu*mass_u, q=1)
+    GCEPRCoordinate(promote(args)..., jacdet, gcvalid, m, q)
+end
+
+function GCEPRCoordinate(gcp::GCParticle,class=:incomplete) 
+    return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,false,gcp.m,gcp.q)
+end
+
 struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T #Kinetic + Potential Energy
     mu::T

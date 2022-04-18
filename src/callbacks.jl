@@ -45,7 +45,7 @@ function phi_condition(maxphi, u, t, integ)
     !stat.poloidal_complete && (abs(u[iphi]-stat.ri[iphi]) > maxphi) # If it has gone around the tokamak more than (maxphi/(2*pi)) times toroidally, but not once poloidally...
 end
 function phi_affect!(integ)
-    integ.p && terminate!(integ) # If only one poloidal transit desired, terminate the integration
+    integ.p && terminate!(integ, :Phi_terminated) #[retcode = :Phi_terminated] # If only one poloidal transit desired, terminate the integration
 end
 phi_callback(maxphi) = DiscreteCallback((u,t,integ)->phi_condition(maxphi,u,t,integ),phi_affect!,save_positions=(false,false))
 # Check callback syntax at https://diffeq.sciml.ai/stable/features/callback_functions/ for further info
@@ -77,10 +77,17 @@ function r_affect!(integ)
             stat.pm = get_pitch(M,gcp,integ.u[4],integ.u[5],integ.u[ir],integ.u[iz]) # Update the pm coordinate with the current pitch
         end
     else
-        integ.p && terminate!(integ)
+        integ.p && terminate!(integ, :R_terminated) #[retcode = :R_terminated]
+    end
+end
+function r_affect_passive!(integ)
+    stat = integ.f.f.stat # Get the stat struct. Please see GuidingCenterOrbits.jl/orbit.jl/GCStatus{} for fields.
+    if !stat.poloidal_complete && stat.nr < 20 # prevent infinite loop
+        stat.nr += 1
     end
 end
 r_cb = ContinuousCallback(r_condition,r_affect!,abstol=1e-6)
+r_cb_passive = ContinuousCallback(r_condition,r_affect_passive!,abstol=1e-6,save_positions=(true,false))
 
 """
     poloidal_condition(u,t,integ)
@@ -115,10 +122,10 @@ function poloidal_affect!(integ)
         stat.tau_p = integ.t # Set the current time to be the poloidal transit time
         stat.tau_t = 2pi*stat.tau_p/abs(integ.u[iphi] - integ.sol.u[1][iphi]) # Compute the toroidal transit time
         stat.class = :unknown # We don't yet know what class the orbit is (potato, banana... etc)
-        integ.p && terminate!(integ) # Terminate the integration, if only one poloidal transit is desired
+        integ.p && terminate!(integ, :Pol_terminated) #[retcode = :Pol_terminated] # Terminate the integration, if only one poloidal transit is desired
     end
 end
-pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,abstol=1e-6)
+pol_cb = ContinuousCallback(poloidal_condition,poloidal_affect!,abstol=1e-6,save_positions=(true,false))
 
 """
     out_of_bounds_condition(u,t,integ)
@@ -138,7 +145,7 @@ end
 function out_of_bounds_affect!(integ)
     integ.f.f.stat.hits_boundary=true # The particle hit the boundary
     integ.f.f.stat.class = :lost # Classify it as lost
-    terminate!(integ) # Terminate the integration
+    terminate!(integ, :Hits_boundary) #[retcode = :Hits_boundary] # Terminate the integration
 end
 oob_cb = DiscreteCallback(out_of_bounds_condition, out_of_bounds_affect!,save_positions=(false,false))
 
@@ -157,8 +164,11 @@ end
 function wall_affect!(integ)
     integ.f.f.stat.hits_boundary=true
     integ.f.f.stat.class = :lost
-    terminate!(integ)
+    terminate!(integ, :Hits_boundary) #[retcode = :Hits_boundary]
 end
 wall_callback(wall) = DiscreteCallback((u,t,integ)->wall_condition(wall,u,t,integ),wall_affect!,save_positions=(false,false))
 
 transit_callback = CallbackSet(r_cb, pol_cb, oob_cb, brr_cb) # A collection of callbacks
+
+
+#terminate!(i::DEIntegrator[, retcode = :Terminated])

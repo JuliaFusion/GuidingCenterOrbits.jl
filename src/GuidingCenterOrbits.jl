@@ -38,13 +38,13 @@ export GCParticle, EPRParticle
 export GCElectron, GCProton, GCDeuteron, GCTriton, GCAlpha
 
 include("coordinates.jl")
-export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate
+export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate, GCEPRCoordinate
 
 include("callbacks.jl")
-export standard_callback
+export standard_callback, wall_callback, phi_callback 
 
 include("orbit.jl")
-export Orbit, OrbitPath, integrate, get_orbit, gc_velocity
+export Orbit, OrbitPath, integrate, get_orbit, gc_velocity, GCStatus
 
 include("fullorbit.jl")
 export FullOrbitPath, get_full_orbit

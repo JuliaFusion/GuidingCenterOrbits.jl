@@ -20,11 +20,22 @@ struct OrbitPath{T}
     z::Vector{T}
     phi::Vector{T}
     dt::Vector{T}
+    jacdets::Vector{Float64}
 #    dl::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64; vacuum=false,drift=false)
-    OrbitPath(vacuum,drift,T[],T[],T[],T[],T[],T[])
+    OrbitPath(vacuum,drift,T[],T[],T[],T[],T[],T[],Float64[])
+end
+
+#Filling out an OrbitPath without jacdets (speed up by specifying input types?)
+function OrbitPath(vacuum::Bool,drift::Bool,energy::Vector{T},pitch::Vector{T},r::Vector{T},z::Vector{T},phi::Vector{T},dt::Vector{T}) where T<:Number
+    OrbitPath(vacuum,drift,energy,pitch,r,z,phi,dt,Float64[])
+end
+
+#Updating  an OrbitPath with jacdets
+function OrbitPath(oldpath::OrbitPath,jacdets::Vector{Float64})
+    OrbitPath(oldpath.vacuum,oldpath.drift,oldpath.energy,oldpath.pitch,oldpath.r,oldpath.z,oldpath.phi,oldpath.dt,jacdets)
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -250,7 +261,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift) # Make the ordinary differential equation
     stat.vi = gc_ode(r0,false,tmin) # Obtain the initial velocity
 
-    r_callback = r_callback && !iszero(stat.vi[ir])
+    r_callback = r_callback && !iszero(stat.vi[ir]) #if r_callback is true, and initial radial velocity is zero, sets r_callback to false. Otherwise keeps r_callback the same.
 
     stat.initial_dir = abs(stat.vi[ir]) > abs(stat.vi[iz]) ? ir : iz # Is it mostly in the R- or z-direction? Element number 1 or 3?
 
@@ -316,7 +327,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=true,maxiters=Int(maxiters*10))
         end
-        success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+        success = (sol.retcode == :Success || sol.retcode == :Terminated || sol.retcode == :Phi_terminated || sol.retcode == :R_terminated || sol.retcode == :Pol_terminated || sol.retcode == :Hits_boundary) &&
                   ((stat.poloidal_complete || !one_transit) || limit_phi) || stat.hits_boundary
         retcode = sol.retcode
 
@@ -365,7 +376,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                 sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                             callback=cb,adaptive=false)
             end
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+            success = (sol.retcode == :Success || sol.retcode == :Terminated || sol.retcode == :Phi_terminated || sol.retcode == :R_terminated || sol.retcode == :Pol_terminated || sol.retcode == :Hits_boundary) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
             retcode = sol.retcode
         catch err
@@ -384,7 +395,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+            success = (sol.retcode == :Success || sol.retcode == :Terminated || sol.retcode == :Phi_terminated || sol.retcode == :R_terminated || sol.retcode == :Pol_terminated || sol.retcode == :Hits_boundary) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
             retcode = sol.retcode
         catch err
@@ -408,7 +419,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+            success = (sol.retcode == :Success || sol.retcode == :Terminated || sol.retcode == :Phi_terminated || sol.retcode == :R_terminated || sol.retcode == :Pol_terminated || sol.retcode == :Hits_boundary) &&
                       (stat.poloidal_complete || !one_transit) || stat.hits_boundary
             retcode = sol.retcode
         catch err
@@ -454,6 +465,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             stat.rm = r[ind]
             stat.zm = z[ind]
             stat.pm = pitch[ind]
+            stat.tm = sol.t[ind]
         end
     end
 
