@@ -66,17 +66,17 @@ struct GCEPRCoordinate
     tau_p::Float64
     tau_t::Float64
     jacdet::Float64
-    gcvalid::Bool
+    gcvalid::Union{Bool,Nothing}
     m::Float64
     q::Int
 end
 
-function GCEPRCoordinate(args...; jacdet=0.0, gcvalid=true, m=H2_amu*mass_u, q=1)
+function GCEPRCoordinate(args...; jacdet=0.0, gcvalid=nothing, m=H2_amu*mass_u, q=1)
     GCEPRCoordinate(promote(args)..., jacdet, gcvalid, m, q)
 end
 
 function GCEPRCoordinate(gcp::GCParticle,class=:incomplete) 
-    return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,false,gcp.m,gcp.q)
+    return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,nothing,gcp.m,gcp.q)
 end
 
 struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
