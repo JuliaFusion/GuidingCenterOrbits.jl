@@ -71,12 +71,12 @@ struct GCEPRCoordinate
     q::Int
 end
 
-function GCEPRCoordinate(args...; jacdet=0.0, gcvalid=nothing, m=H2_amu*mass_u, q=1)
+function GCEPRCoordinate(args...; jacdet::Float64=0.0, gcvalid::Union{Bool,Nothing}=nothing, m::Float64=H2_amu*mass_u, q::Int=1) 
     GCEPRCoordinate(promote(args)..., jacdet, gcvalid, m, q)
 end
 
-function GCEPRCoordinate(gcp::GCParticle,class=:incomplete) 
-    return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,nothing,gcp.m,gcp.q)
+function GCEPRCoordinate(gcp::GCParticle,class::Symbol=:incomplete; gcvalid::Union{Bool,Nothing}=nothing) 
+    return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,gcvalid,gcp.m,gcp.q)
 end
 
 struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
