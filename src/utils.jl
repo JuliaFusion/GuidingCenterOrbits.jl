@@ -136,6 +136,7 @@ Return true if the criterion is fulfilled, and it is ok to use GCDE.
 Return false if the criterion is not fulfilled, and FOE should be used instead.
 """
 function _gcde_check(M::AbstractEquilibrium, KE::AbstractFloat, m::AbstractFloat, q::AbstractFloat, r::AbstractVector{T}, phi::AbstractVector{T}, z::AbstractVector{T}, pitch::AbstractVector{T}; threshold=0.073, verbose=false) where {T<:AbstractFloat}
+    length(r)==0 && (return false)
 
     g_rz = (x) -> poloidal_current(M, M(x[1],x[2])) # Poloidal current function (F=R*Bt) as a function of R,Z
     dpsi_rz = (x) -> psi_gradient(M, x[1], x[2]) # [dψ/dR,dψ/dZ] as a function of R,Z
@@ -216,6 +217,7 @@ end
 
 function gcde_check(M::AbstractEquilibrium, KE::Number, m::AbstractFloat, q::Number, r::AbstractVector{T}, phi::AbstractVector{T}, z::AbstractVector{T}, pitch::AbstractVector{T}; kwargs...) where {T<:Number}
     (q isa Int) && (q *= e0) 
+    length(r)==0 && (return false)
     (r[1] isa ForwardDiff.Dual) && (return _gcde_check(M,ForwardDiff.value(KE), m, q, ForwardDiff.value.(r), ForwardDiff.value.(phi), ForwardDiff.value.(z), ForwardDiff.value.(pitch); kwargs...))
     return _gcde_check(M, KE, m, q, r, phi, z, pitch; kwargs...)
 end

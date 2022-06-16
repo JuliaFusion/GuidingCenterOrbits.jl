@@ -55,6 +55,8 @@ phi_callback(maxphi) = DiscreteCallback((u,t,integ)->phi_condition(maxphi,u,t,in
 
 Return the ratio of the r component of the velocity, to the total speed of the particle.
 
+r_affect_passive is used to save the r position, without updating stat. It is applied in the GPU-compatible orbit solver where stat cannot be retrieved; r_max must instead be found by waiting for poloidal_condition to be met, and then taking the max radius of the solution and its corresponding index.
+
 Inputs:
     Same as freeze_condition.
 """
