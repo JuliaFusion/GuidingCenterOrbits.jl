@@ -569,3 +569,147 @@ function Base.show(io::IO, orbit::Orbit)
     @printf(io, " τ_t= %.3f μs\n", orbit.tau_t*1e6)
     print(io,   " gc-valid: $(orbit.gcvalid)")
 end
+
+function write_Orbs(orbs; filename="PSOrbs.h5", write_paths = true)
+    numorbs = length(orbs)
+
+    classes = Vector{String}()
+
+    Em = zeros(Float64,numorbs)
+    pm = zeros(Float64,numorbs)
+    Rm = zeros(Float64,numorbs)
+    Zm = zeros(Float64,numorbs)
+    tm = zeros(Float64,numorbs)
+
+    t_p = zeros(Float64,numorbs)
+    t_t = zeros(Float64,numorbs)
+
+    if write_paths
+        path_e = Vector{Float64}[]
+        path_p = Vector{Float64}[]
+        path_r = Vector{Float64}[]
+        path_z = Vector{Float64}[]
+        path_phi = Vector{Float64}[]
+        path_dt = Vector{Float64}[]
+        jacdets = Vector{Float64}[]
+    end
+
+    for (io,o) in enumerate(orbs) 
+        Em[io] = o.coordinate.energy
+        pm[io] = o.coordinate.pitch
+        Rm[io] = o.coordinate.r
+        Zm[io] = o.coordinate.z
+        tm[io] = o.coordinate.t
+
+        t_p[io] = o.tau_p
+        t_t[io] = o.tau_t
+
+        push!(classes,string(o.class))
+        if write_paths
+            push!(path_e,o.path.energy)
+            push!(path_p,o.path.pitch)
+            push!(path_r,o.path.r)
+            push!(path_z,o.path.z)
+            push!(path_phi,o.path.phi)
+            push!(path_dt,o.path.dt)
+            push!(jacdets,o.path.jacdets)
+        end
+    end
+    
+    h5open(filename,"w") do file
+        file["Em"] = Em
+        file["pm"] = pm
+        file["Rm"] = Rm
+        file["Zm"] = Zm
+        file["tm_normalised"] = tm
+
+        file["tau_p"] = t_p
+        file["tau_t"] = t_t
+
+        file["class"] = classes
+
+        file["m"] = orbs[1].coordinate.m
+        file["q"] = orbs[1].coordinate.q
+
+        file["vacuum"] = orbs[1].path.vacuum
+        file["drift"] = orbs[1].path.drift
+
+        if write_paths
+            for i = 1:length(orbs)
+                file[string("path_e",i)] = path_e[i]
+                file[string("path_p",i)] = path_p[i]
+                file[string("path_r",i)] = path_r[i]
+                file[string("path_z",i)] = path_z[i]
+                file[string("path_phi",i)] = path_phi[i]
+                file[string("path_dt",i)] = path_dt[i]
+                file[string("jacdets",i)] = jacdets[i]
+            end
+        end
+
+    end
+    nothing
+end
+
+function read_Orbs(filename; read_paths = true)
+    isfile(filename) || error("File does not exist")
+
+    f = h5open(filename)
+    Em = read(f["Em"])
+    pm = read(f["pm"])
+    Rm = read(f["Rm"])
+    Zm = read(f["Zm"])
+    tm = read(f["tm_normalised"])
+
+    t_p = read(f["tau_p"])
+    t_t = read(f["tau_t"])
+
+    classes = Symbol.(read(f["class"]))
+
+    m = read(f["m"])
+    q = read(f["q"])
+
+    vacuum = read(f["vacuum"])
+    drift = read(f["drift"])
+
+    if read_paths
+        path_e = Vector{Float64}[]
+        path_p = Vector{Float64}[]
+        path_r = Vector{Float64}[]
+        path_z = Vector{Float64}[]
+        path_phi = Vector{Float64}[]
+        path_dt = Vector{Float64}[]
+        jacdets = Vector{Float64}[]
+
+        for i=1:length(Em)
+            push!(path_e,read(f[string("path_e",i)]))
+            push!(path_p,read(f[string("path_p",i)]))
+            push!(path_r,read(f[string("path_r",i)]))
+            push!(path_z,read(f[string("path_z",i)]))
+            push!(path_phi,read(f[string("path_phi",i)]))
+            push!(path_dt,read(f[string("path_dt",i)]))
+            push!(jacdets,read(f[string("jacdets",i)]))
+        end
+    end
+
+    close(f)
+
+    orbs = Orbit[]
+
+    print("Appending Orbits\n")
+
+    @showprogress for i=1:length(Em)
+        c = EPRCoordinate(Em[i],pm[i],Rm[i],Zm[i],tm[i],m,q)
+
+        if read_paths
+            path = OrbitPath(vacuum,drift,path_e[i],path_p[i],path_r[i],path_z[i],path_phi[i],path_dt[i],jacdets[i])
+            o_i = Orbit(c,classes[i],t_p[i],t_t[i],path,true)
+        else 
+            nullPath = OrbitPath(;vacuum=vacuum,drift=drift)
+            o_i = Orbit(c,classes[i],t_p[i],t_t[i],nullPath,true)
+        end
+
+        push!(orbs,o_i)
+    end
+
+    return orbs
+end

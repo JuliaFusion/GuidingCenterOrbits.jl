@@ -15,6 +15,8 @@ using Base.Iterators
 using Interpolations
 using StaticArrays
 using Contour
+using HDF5
+using ProgressMeter
 #using Plots
 
 const e0 = 1.60217733e-19 # Coulombs / Joules
@@ -44,7 +46,7 @@ include("callbacks.jl")
 export standard_callback, wall_callback, phi_callback 
 
 include("orbit.jl")
-export Orbit, OrbitPath, integrate, get_orbit, gc_velocity, GCStatus
+export Orbit, OrbitPath, integrate, get_orbit, gc_velocity, GCStatus, write_Orbs, read_Orbs
 
 include("fullorbit.jl")
 export FullOrbitPath, get_full_orbit
