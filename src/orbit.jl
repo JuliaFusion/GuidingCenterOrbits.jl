@@ -44,7 +44,7 @@ function Base.show(io::IO, path::OrbitPath)
     print(io, typeof(path),"\n")
     print(io, " length = $(length(path))\n")
     print(io, " vacuum = $(path.vacuum)\n")
-    print(io, " drift = $(path.vacuum)")
+    print(io, " drift = $(path.drift)")
 end
 
 """
@@ -693,7 +693,7 @@ function read_Orbs(filename; read_paths = true)
 
     close(f)
 
-    orbs = Orbit[]
+    orbs = Orbit{Float64}[]
 
     print("Appending Orbits\n")
 

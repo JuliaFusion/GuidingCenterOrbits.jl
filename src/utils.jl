@@ -102,6 +102,22 @@ function classify(path::OrbitPath, axis)
     return classify(path.r,path.z,path.pitch, axis, n=length(path))
 end
 
+function class_char(class::Symbol)
+    classes = Dict(:trapped=>'t',:co_passing=>'p',:ctr_passing=>'c',
+    :stagnation=>'s',:potato=>'o',:incomplete=>'i',
+    :Invalid=>'v',:meta=>'m',:lost=>'l')
+
+    return classes[class]
+end
+
+function class_char(class::Char)
+    classes = Dict('t'=>:trapped,'p'=>:co_passing,'c'=>:ctr_passing,
+    's'=>:stagnation,'o'=>:potato,'i'=>:incomplete,
+    'v'=>:Invalid,'m'=>:meta,'l'=>:lost)
+
+    return classes[class]
+end
+
 """
     _eigmax(A) -> λ_max
 

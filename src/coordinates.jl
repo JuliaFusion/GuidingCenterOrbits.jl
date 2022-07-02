@@ -62,20 +62,20 @@ struct GCEPRCoordinate
     r_m::Float64
     z_m::Float64
     t::Float64
-    class::Symbol
+    class::Char
     tau_p::Float64
     tau_t::Float64
     jacdet::Float64
-    gcvalid::Union{Bool,Nothing}
+    gcvalid::Bool
     m::Float64
     q::Int
 end
 
-function GCEPRCoordinate(args...; jacdet::Float64=0.0, gcvalid::Union{Bool,Nothing}=nothing, m::Float64=H2_amu*mass_u, q::Int=1) 
+function GCEPRCoordinate(args...; jacdet::Float64=0.0, gcvalid::Bool=false, m::Float64=H2_amu*mass_u, q::Int=1) 
     GCEPRCoordinate(promote(args)..., jacdet, gcvalid, m, q)
 end
 
-function GCEPRCoordinate(gcp::GCParticle,class::Symbol=:incomplete; gcvalid::Union{Bool,Nothing}=nothing) 
+function GCEPRCoordinate(gcp::GCParticle,class::Char='i'; gcvalid::Bool=false) 
     return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,gcvalid,gcp.m,gcp.q)
 end
 
