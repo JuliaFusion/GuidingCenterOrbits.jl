@@ -570,7 +570,12 @@ function Base.show(io::IO, orbit::Orbit)
     print(io,   " gc-valid: $(orbit.gcvalid)")
 end
 
-function write_Orbs(orbs; filename="PSOrbs.h5", write_paths = true)
+function write_Orbs(orbs; filename="PSOrbs.h5")
+    @save filename orbs
+    nothing
+end
+
+function write_OrbsOld(orbs; filename="PSOrbs.h5", write_paths = true)
     numorbs = length(orbs)
 
     classes = Vector{String}()
@@ -650,7 +655,16 @@ function write_Orbs(orbs; filename="PSOrbs.h5", write_paths = true)
     nothing
 end
 
-function read_Orbs(filename; read_paths = true)
+function read_Orbs(filename::String; old::Bool=false, read_paths::Bool=true)
+    (old||(last(filename,2)=="h5")) && (return read_OrbsOld(filename,read_paths=read_paths))
+
+    isfile(filename) || error("File does not exist")
+    @load filename orbs
+
+    return orbs
+end
+
+function read_OrbsOld(filename; read_paths = true)
     isfile(filename) || error("File does not exist")
 
     f = h5open(filename)
@@ -710,6 +724,9 @@ function read_Orbs(filename; read_paths = true)
 
         push!(orbs,o_i)
     end
+
+    filename_new = string(chop(filename,tail=2),"jld2")
+    write_Orbs(orbs; filename=filename_new)
 
     return orbs
 end
