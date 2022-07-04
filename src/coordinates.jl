@@ -51,8 +51,6 @@ function Base.show(io::IO, c::EPRCoordinate)
     @printf(io," Rmax = %.3f m",c.r)
 end
 
-#This will fill out orbits in the PSGrid, but not the orbit grid
-#I want it to just be 
 struct GCEPRCoordinate
     energy::Float64
     pitch::Float64

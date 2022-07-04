@@ -707,7 +707,7 @@ function read_OrbsOld(filename; read_paths = true)
 
     close(f)
 
-    orbs = Orbit{Float64}[]
+    orbs = Orbit{Float64, EPRCoordinate{Float64}}[]
 
     print("Appending Orbits\n")
 

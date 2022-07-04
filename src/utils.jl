@@ -102,6 +102,10 @@ function classify(path::OrbitPath, axis)
     return classify(path.r,path.z,path.pitch, axis, n=length(path))
 end
 
+"""
+    class_char(class::Symbol)
+Converts between classes as symbols and classes as characters as used by GCEPRCoordinate.
+"""
 function class_char(class::Symbol)
     classes = Dict(:trapped=>'t',:co_passing=>'p',:ctr_passing=>'c',
     :stagnation=>'s',:potato=>'o',:incomplete=>'i',
@@ -110,6 +114,10 @@ function class_char(class::Symbol)
     return classes[class]
 end
 
+"""
+    class_char(class::Char)
+Converts between classes as symbols and classes as characters as used in GCEPRCoordinate.
+"""
 function class_char(class::Char)
     classes = Dict('t'=>:trapped,'p'=>:co_passing,'c'=>:ctr_passing,
     's'=>:stagnation,'o'=>:potato,'i'=>:incomplete,
