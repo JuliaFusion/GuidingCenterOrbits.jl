@@ -209,11 +209,13 @@ Inputs:\\
 `tmax` - The stopping time for the integration (s)\\
 `integrator` - The type of ODE integrator to be used. For example Tsit5(), BS3(), Vern9() etc. See DifferentialEquations.jl for full list\\
 `wall` - Boundary object defined in Equilibrium.jl. The (R,z) coordinates of the wall of the tokamak (in meters)\\
-`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.\\
+`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, solution time steps will vary.\\
 `classify_orbit` - If true, let the algorithm classify the resulting orbit\\
 `one_transit` - If true, stop the integration after particles completes one poloidal transit\\
 `store_path` - If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.\\
-`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.\\
+`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length is the maximum length of an interpolated path.\\
+`min_length` - The solve() function returns path arrays that are arbitrarily long. If min_length is specified, the interpolated path will be increased to at least min_length.\\
+`length_multiplier` - The solve() function returns path arrays that are arbitrarily long. length_multiplier allows some control over the rate of time sampling while respecting the solver's chosen time resolution.\\
 `maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
 `toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).\\
 `maxiters` - The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.\\
@@ -228,7 +230,7 @@ Inputs:\\
 """
 function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Wall}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
+                   one_transit::Bool, store_path::Bool, max_length::Int, min_length::Int, length_multiplier::Float64, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
                    r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, debug::Bool)
 
     stat = GCStatus(typeof(gcp.r))
@@ -305,7 +307,9 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         println("- interp_dt: $(interp_dt)")
         println("- classify_orbit: $(classify_orbit)")
         println("- one_transit: $(one_transit)")
-        println("- Maximum orbit length (will otherwise be interpolated onto this length): $(max_length)")
+        println("- Orbit interpolation lengths will be scaled by this factor: $(length_multiplier)")
+        println("- Maximum orbit length (will be interpolated onto this length if longer than it.): $(max_length)")
+        println("- Minimum orbit length (will be interpolated onto this length if shorter than it): $(min_length)")
         println("- The first integration will use $(maxiters) numerical iterations. ")
         r_callback && println("- r_callback will be used.")
         vacuum && println("- Vacuum is assumed.")
@@ -445,7 +449,10 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         n = min(max_length,n)
         sol = sol(range(tmin,sol.t[end],length=n)) # Interpolate solution onto n points evently spaced in time
     else
-        n = min(max_length, length(sol))
+        min_length > max_length && warn("Requested min_length conflicts with max_length")
+        n = round(Int,length_multiplier*length(sol))
+        n = min(max_length, n)
+        min_length != 0 && n < min_length && (n = min_length)
         sol = sol(range(tmin,sol.t[end],length=n)) # Interpolate solution onto n points evently spaced in time
     end
     n = length(sol)
@@ -511,12 +518,12 @@ written above.
 """
 function integrate(M::AbstractEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
-                   classify_orbit=true, one_transit=false, store_path=true, max_length=500,
+                   classify_orbit=true, one_transit=false, store_path=true, max_length=500, min_length=0, length_multiplier=1.0,
                    maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=false, verbose=false,
                    vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, debug=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
-                           classify_orbit, one_transit, store_path, max_length, maxiter,
+                           classify_orbit, one_transit, store_path, max_length, min_length, length_multiplier, maxiter,
                            toa, maxiters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, debug)
     return path, stat
 end
