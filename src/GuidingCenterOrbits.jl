@@ -15,6 +15,9 @@ using Base.Iterators
 using Interpolations
 using StaticArrays
 using Contour
+using HDF5
+using JLD2
+using ProgressMeter
 #using Plots
 
 const e0 = 1.60217733e-19 # Coulombs / Joules
@@ -38,13 +41,13 @@ export GCParticle, EPRParticle
 export GCElectron, GCProton, GCDeuteron, GCTriton, GCAlpha
 
 include("coordinates.jl")
-export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate
+export AbstractOrbitCoordinate, EPRCoordinate, HamiltonianCoordinate, GCEPRCoordinate
 
 include("callbacks.jl")
-export standard_callback
+export standard_callback, wall_callback, phi_callback 
 
 include("orbit.jl")
-export Orbit, OrbitPath, integrate, get_orbit, gc_velocity
+export Orbit, OrbitPath, integrate, get_orbit, gc_velocity, GCStatus, write_Orbs, read_Orbs
 
 include("fullorbit.jl")
 export FullOrbitPath, get_full_orbit
@@ -55,7 +58,7 @@ export OrbitProjection, orbit_projection, in_orbit
 include("utils.jl")
 export get_pitch, hits_wall_path, hits_wall, get_kinetic_energy
 export lorentz_factor, cyclotron_frequency, cyclotron_period, normalize
-export perpendicular_vectors, gyro_step, larmor_radius, gcde_check
+export perpendicular_vectors, gyro_step, larmor_radius, gcde_check, classify, class_char
 
 using ForwardDiff
 using ForwardDiff: Dual, partials, value
