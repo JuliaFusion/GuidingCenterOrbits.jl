@@ -26,7 +26,8 @@ function EPRCoordinate(M::AbstractEquilibrium, energy, pitch, R ; amu=H2_amu, q=
     rmaxis, zaxis = magnetic_axis(M)
     zmax = zaxis + dz
     zmin = zaxis - dz
-    if (M.psi[2]-M.psi[1]) > 0.0
+    psimag, psibdry = psi_limits(M)
+    if (psibdry-psimag) > 0.0
         res = optimize(x->M(R,x), zmin, zmax) # Minimize
     else
         res = optimize(x->-M(R,x), zmin, zmax) # Maximize
