@@ -306,7 +306,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     # Always try adaptive first
     dts = dt
     success = false
-    retcode = :TotalFailure
+    retcode = :TotalFailure # I think we should change this to ReturnCode.Failure (or maybe ReturnCode.Default)
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                     callback=cb,adaptive=true,maxiters=maxiters)
@@ -316,7 +316,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                         callback=cb,adaptive=true,maxiters=Int(maxiters*10))
         end
-        success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+        success = SciMLBase.successful_retcode(sol) &&
                   ((stat.poloidal_complete || !one_transit) || limit_phi) || stat.hits_boundary
         retcode = sol.retcode
 
@@ -365,7 +365,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                 sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                             callback=cb,adaptive=false)
             end
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+            success = SciMLBase.successful_retcode(sol) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
             retcode = sol.retcode
         catch err
@@ -384,7 +384,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+            success = SciMLBase.successful_retcode(sol) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
             retcode = sol.retcode
         catch err
@@ -408,7 +408,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = (sol.retcode == :Success || sol.retcode == :Terminated) &&
+            success = SciMLBase.successful_retcode(sol) &&
                       (stat.poloidal_complete || !one_transit) || stat.hits_boundary
             retcode = sol.retcode
         catch err
