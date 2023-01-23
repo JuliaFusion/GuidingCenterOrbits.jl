@@ -306,7 +306,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     # Always try adaptive first
     dts = dt
     success = false
-    retcode = :TotalFailure # I think we should change this to ReturnCode.Failure (or maybe ReturnCode.Default)
+    retcode = ReturnCode.Failure # By default, assume that the integration algorithm failed
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
                     callback=cb,adaptive=true,maxiters=maxiters)
