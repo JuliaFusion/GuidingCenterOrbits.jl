@@ -46,7 +46,7 @@ The fields are:\\
 `tau_t` - The toroidal transit time of the orbit.\\
 `path` - The OrbitPath of the orbit.
 """
-struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
+struct Orbit{T,S<:AbstractOrbitCoordinate{T}}
     coordinate::S
     class::Symbol
     tau_p::T
@@ -224,7 +224,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     rlims, zlims = limits(M)
     if !((rlims[1] < gcp.r < rlims[end]) && (zlims[1] < gcp.z < zlims[end]))
         verbose && @warn "Starting point outside boundary: " r0 = (gcp.r, gcp.z)
-        return OrbitPath(;vacuum=vacuum,drift=drift), stat
+        return OrbitPath(typeof(gcp.r);vacuum=vacuum,drift=drift), stat
     end
 
     # Initial Conditions
@@ -398,7 +398,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     if !success
         verbose && @warn "Unable to find Guiding Center Orbit" gcp retcode
         stat.class = :incomplete
-        return OrbitPath(;vacuum=vacuum,drift=drift), stat
+        return OrbitPath(typeof(gcp.r);vacuum=vacuum,drift=drift), stat
     end
     stat.errcode=0
 
@@ -463,7 +463,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     end
 
     if !store_path
-        return OrbitPath(;vacuum=vacuum,drift=drift), stat
+        return OrbitPath(typeof(stat.rm);vacuum=vacuum,drift=drift), stat
     end
 
     # Get everything else in path
