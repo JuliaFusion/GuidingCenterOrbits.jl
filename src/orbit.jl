@@ -309,13 +309,13 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     retcode = ReturnCode.Failure # By default, assume that the integration algorithm failed
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
-                    callback=cb,adaptive=true,max_iters=max_iters)
+                    callback=cb,adaptive=true,maxiters=max_iters)
         if sol.t[end] >= tspan[2] && one_transit
             verbose && println("Adaptive sol.t[end] >= tspan[2]. Re-setting and re-integrating...")
             reset!(stat,one_transit,r_callback)
             ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
-                        callback=cb,adaptive=true,max_iters=Int(max_iters*10))
+                        callback=cb,adaptive=true,maxiters=Int(max_iters*10))
         end
         success = SciMLBase.successful_retcode(sol) &&
                   ((stat.poloidal_complete || !one_transit) || limit_phi) || stat.hits_boundary
