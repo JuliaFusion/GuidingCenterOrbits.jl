@@ -129,7 +129,7 @@ and FOE is to be expected. The equations to compute ̂M are from Appendix B of t
 Return true if the criterion is fulfilled, and it is ok to use GCDE.
 Return false if the criterion is not fulfilled, and FOE should be used instead.
 """
-function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; threshold=0.073, verbose=false)
+function gcde_check(M::AbstractEquilibrium, gcp::GCParticle{T}, path::OrbitPath; threshold=0.073, verbose=false) where {T}
 
     g_rz = (x) -> poloidal_current(M, M(x[1],x[2])) # Poloidal current function (F=R*Bt) as a function of R,Z
     dpsi_rz = (x) -> psi_gradient(M, x[1], x[2]) # [dψ/dR,dψ/dZ] as a function of R,Z
@@ -154,12 +154,12 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle, path::OrbitPath; th
 
         r_g = sqrt(p_perp2) / (abs(q)*Babs) # Gyroradius at particle position. m
 
-        F = g_rz(SVector{2,Float64}(R,Z)) # Poloidal current function in meter*Tesla
-        grad_psi = SVector{2,Float64}(psi_gradient(M,R,Z)) # [dψ/dR,dψ/dZ]. SVector for efficiency
+        F = g_rz(SVector{2,T}(R,Z)) # Poloidal current function in meter*Tesla
+        grad_psi = SVector{2,T}(psi_gradient(M,R,Z)) # [dψ/dR,dψ/dZ]. SVector for efficiency
         cc = cocos(M) # Cocos factor
         cocos_factor = cc.sigma_RpZ*cc.sigma_Bp/((2pi)^cc.exp_Bp)
 
-        grad_F = SVector{2,Float64}(ForwardDiff.gradient(g_rz,SVector{2}(R,Z))) # [∂F/∂r,∂F/∂z] SVector for efficiency
+        grad_F = SVector{2,T}(ForwardDiff.gradient(g_rz,SVector{2}(R,Z))) # [∂F/∂r,∂F/∂z] SVector for efficiency
         J_grad_psi = SMatrix{2,2}(ForwardDiff.jacobian(dpsi_rz,SVector{2}(R,Z))) # [d^2ψ/dr^2 d^2ψ/dzdr;d^2ψ/drdz d^2ψ/dz^2] SMatrix for efficiency
 
         D = SMatrix{3,3}(cocos_factor*inv(R)*(J_grad_psi[2,1]-grad_psi[2]*inv(R)),grad_F[1]-F*inv(R),cocos_factor*inv(R)*(-J_grad_psi[1,1]+inv(R)*grad_psi[1]),-F*inv(R),cocos_factor*grad_psi[2],0.0,cocos_factor*inv(R)*J_grad_psi[2,2],grad_F[2],-cocos_factor*inv(R)*J_grad_psi[1,2]) # Matrix D as in equation (2) in D. Pfefferlé et al (2015). Note D_{ij}=B_{i;j} in appendix B.

@@ -45,7 +45,7 @@ function phi_condition(maxphi, u, t, integ)
     !stat.poloidal_complete && (abs(u[iphi]-stat.ri[iphi]) > maxphi) # If it has gone around the tokamak more than (maxphi/(2*pi)) times toroidally, but not once poloidally...
 end
 function phi_affect!(integ)
-    integ.p && terminate!(integ) # If only one poloidal transit desired, terminate the integration
+    integ.p && terminate!(integ) # Terminate the integration
 end
 phi_callback(maxphi) = DiscreteCallback((u,t,integ)->phi_condition(maxphi,u,t,integ),phi_affect!,save_positions=(false,false))
 # Check callback syntax at https://diffeq.sciml.ai/stable/features/callback_functions/ for further info

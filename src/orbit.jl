@@ -33,7 +33,7 @@ function Base.show(io::IO, path::OrbitPath)
     print(io, typeof(path),"\n")
     print(io, " length = $(length(path))\n")
     print(io, " vacuum = $(path.vacuum)\n")
-    print(io, " drift = $(path.vacuum)")
+    print(io, " drift = $(path.drift)")
 end
 
 """
@@ -46,7 +46,7 @@ The fields are:\\
 `tau_t` - The toroidal transit time of the orbit.\\
 `path` - The OrbitPath of the orbit.
 """
-struct Orbit{T,S<:AbstractOrbitCoordinate{Float64}}
+struct Orbit{T,S<:AbstractOrbitCoordinate{T}}
     coordinate::S
     class::Symbol
     tau_p::T
@@ -203,9 +203,9 @@ Inputs:\\
 `one_transit` - If true, stop the integration after particles completes one poloidal transit\\
 `store_path` - If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.\\
 `max_length` - The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.\\
-`maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
+`max_tries` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
 `toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).\\
-`maxiters` - The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.\\
+`max_iters` - The solve() function has a default maximum number of iterations of 1e5. Use max_iters to increase this number.\\
 `autodiff` - Deprecated.\\
 `r_callback` - If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)\\
 `verbose` - If true, lots of output messages will be printed during execution.\\
@@ -217,14 +217,14 @@ Inputs:\\
 """
 function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Wall}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, max_length::Int, maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
+                   one_transit::Bool, store_path::Bool, max_length::Int, max_tries::Int, toa::Bool, max_iters::Int, autodiff::Bool,
                    r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, debug::Bool)
 
     stat = GCStatus(typeof(gcp.r))
     rlims, zlims = limits(M)
     if !((rlims[1] < gcp.r < rlims[end]) && (zlims[1] < gcp.z < zlims[end]))
         verbose && @warn "Starting point outside boundary: " r0 = (gcp.r, gcp.z)
-        return OrbitPath(;vacuum=vacuum,drift=drift), stat
+        return OrbitPath(typeof(gcp.r);vacuum=vacuum,drift=drift), stat
     end
 
     # Initial Conditions
@@ -295,7 +295,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         println("- classify_orbit: $(classify_orbit)")
         println("- one_transit: $(one_transit)")
         println("- Maximum orbit length (will otherwise be interpolated onto this length): $(max_length)")
-        println("- The first integration will use $(maxiters) numerical iterations. ")
+        println("- The first integration will use $(max_iters) numerical iterations. ")
         r_callback && println("- r_callback will be used.")
         vacuum && println("- Vacuum is assumed.")
         drift && println("- Particle drifts are included.")
@@ -308,13 +308,14 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     success = false
     retcode = ReturnCode.Failure # By default, assume that the integration algorithm failed
     try
-        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
-                    callback=cb,adaptive=true,maxiters=maxiters)
+        sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
+                    callback=cb,adaptive=true,maxiters=max_iters)
         if sol.t[end] >= tspan[2] && one_transit
+            verbose && println("Adaptive sol.t[end] >= tspan[2]. Re-setting and re-integrating...")
             reset!(stat,one_transit,r_callback)
             ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
-                        callback=cb,adaptive=true,maxiters=Int(maxiters*10))
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
+                        callback=cb,adaptive=true,maxiters=Int(max_iters*10))
         end
         success = SciMLBase.successful_retcode(sol) &&
                   ((stat.poloidal_complete || !one_transit) || limit_phi) || stat.hits_boundary
@@ -332,7 +333,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         verbose && println("Success: $(success)")
         verbose && println("sol.retcode: $(retcode)")
         verbose && println("stat.poloidal_complete: $(stat.poloidal_complete)")
-        verbose && println("!one_transit: $(!one_transit)")
+        verbose && println("one_transit: $(one_transit)")
         verbose && println("Length(sol): $(length(sol))")
         verbose && println(gcp)
         verbose && println("The integration will terminate now.")
@@ -357,12 +358,12 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         verbose && println("Adaptive did not find guiding-centre orbit. Trying non-adaptive... ")
         try
             reset!(stat,one_transit,r_callback)
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
                         callback=cb,adaptive=false)
             if sol.t[end] >= tspan[2] && one_transit
                 reset!(stat,one_transit,r_callback)
                 ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
-                sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false, force_dtmin=true,
+                sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
                             callback=cb,adaptive=false)
             end
             success = SciMLBase.successful_retcode(sol) &&
@@ -376,13 +377,13 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         end
     end
 
-    for i=1:maxiter #Try progressivly smaller time step
+    for i=1:max_tries #Try progressivly smaller time step
         (success || toa) && break
         dts = dts/10
         verbose && println("Re-trying non-adaptive with smaller timestep... ")
         try
             reset!(stat,one_transit,r_callback)
-            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=false,
+            sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose,
                         callback=cb, force_dtmin=true, adaptive=false)
             success = SciMLBase.successful_retcode(sol) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
@@ -398,7 +399,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     if !success
         verbose && @warn "Unable to find Guiding Center Orbit" gcp retcode
         stat.class = :incomplete
-        return OrbitPath(;vacuum=vacuum,drift=drift), stat
+        return OrbitPath(typeof(gcp.r);vacuum=vacuum,drift=drift), stat
     end
     stat.errcode=0
 
@@ -406,7 +407,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         verbose && println("Trying one last time with even smaller timestep... ")
         try
             reset!(stat,one_transit,r_callback)
-            sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=false,
+            sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=verbose,
                         callback=cb, force_dtmin=true, adaptive=false)
             success = SciMLBase.successful_retcode(sol) &&
                       (stat.poloidal_complete || !one_transit) || stat.hits_boundary
@@ -421,7 +422,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
         verbose && println(" ")
-        verbose && println("maxiters: $(maxiters)")
+        verbose && println("max_iters: $(max_iters)")
         verbose && println("Solution array lengths: $(length(sol.t))")
         verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
     end
@@ -463,7 +464,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     end
 
     if !store_path
-        return OrbitPath(;vacuum=vacuum,drift=drift), stat
+        return OrbitPath(typeof(stat.rm);vacuum=vacuum,drift=drift), stat
     end
 
     # Get everything else in path
@@ -500,12 +501,12 @@ written above.
 function integrate(M::AbstractEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
                    classify_orbit=true, one_transit=false, store_path=true, max_length=500,
-                   maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=false, verbose=false,
+                   max_tries=3, toa=false, max_iters=Int(1e6), autodiff=true, r_callback=false, verbose=false,
                    vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, debug=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
-                           classify_orbit, one_transit, store_path, max_length, maxiter,
-                           toa, maxiters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, debug)
+                           classify_orbit, one_transit, store_path, max_length, max_tries,
+                           toa, max_iters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, debug)
     return path, stat
 end
 
