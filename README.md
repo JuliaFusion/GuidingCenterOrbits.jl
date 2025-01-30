@@ -11,10 +11,10 @@
 using EFIT, Equilibrium, GuidingCenterOrbits
 
 #Read in equilibrium
-M, wall = read_geqdsk(EFIT.test_gfile)
+M, wall = read_geqdsk(EFIT.test_gfile, clockwise_phi=false)
 
 #Define initial conditions
-gcp = GCParticle(80.0,0.2,1.9,0.0)
+gcp = GCDeuteron(80.0,0.2,1.9,0.0)
 
 #Calculate trajectory
 path, stat = integrate(M, gcp, tmax=1000.0)
