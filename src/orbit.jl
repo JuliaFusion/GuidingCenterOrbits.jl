@@ -20,11 +20,22 @@ struct OrbitPath{T}
     z::Vector{T}
     phi::Vector{T}
     dt::Vector{T}
+    jacdets::Vector{Float64}
 #    dl::Vector{T}
 end
 
 function OrbitPath(T::DataType=Float64; vacuum=false,drift=false)
-    OrbitPath(vacuum,drift,T[],T[],T[],T[],T[],T[])
+    OrbitPath(vacuum,drift,T[],T[],T[],T[],T[],T[],Float64[])
+end
+
+#Filling out an OrbitPath without jacdets (speed up by specifying input types?)
+function OrbitPath(vacuum::Bool,drift::Bool,energy::Vector{T},pitch::Vector{T},r::Vector{T},z::Vector{T},phi::Vector{T},dt::Vector{T}) where T<:Number
+    OrbitPath(vacuum,drift,energy,pitch,r,z,phi,dt,Float64[])
+end
+
+#Updating  an OrbitPath with jacdets
+function OrbitPath(oldpath::OrbitPath,jacdets::Vector{Float64})
+    OrbitPath(oldpath.vacuum,oldpath.drift,oldpath.energy,oldpath.pitch,oldpath.r,oldpath.z,oldpath.phi,oldpath.dt,jacdets)
 end
 
 Base.length(op::OrbitPath) = length(op.r)
@@ -79,6 +90,7 @@ The fields are:\\
 `poloidal_complete` - True if the guiding-centre particle has completed one orbit poloidally\\
 `hits_boundary` - True if the guiding-centre particle hit the boundaries set by M (AbstractEquilibrum)\\
 `class` - The type of orbit (:co-passing, :trapped, :potato etc)
+`retcode` - Return code of integrator
 """
 mutable struct GCStatus{T<:Number}
     errcode::Int
@@ -95,11 +107,12 @@ mutable struct GCStatus{T<:Number}
     poloidal_complete::Bool
     hits_boundary::Bool
     class::Symbol
+    retcode::Symbol
 end
 
 function GCStatus(T=Float64)
     z = zero(T)
-    return GCStatus(1,SVector{5}(z,z,z,z,z),SVector{5}(z,z,z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete)
+    return GCStatus(1,SVector{5}(z,z,z,z,z),SVector{5}(z,z,z,z,z),0,0,z,z,z,z,z,z,false,false,:incomplete,:unknown)
 end
 
 function reset!(stat::GCStatus{T}, one_transit, r_callback) where T
@@ -113,6 +126,7 @@ function reset!(stat::GCStatus{T}, one_transit, r_callback) where T
     stat.poloidal_complete = false
     stat.hits_boundary = false
     stat.class = :incomplete
+    stat.retcode = :unknown
     if one_transit && !r_callback
         stat.nr = 2
         stat.rm = stat.ri[1]
@@ -198,12 +212,14 @@ Inputs:\\
 `tmax` - The stopping time for the integration (s)\\
 `integrator` - The type of ODE integrator to be used. For example Tsit5(), BS3(), Vern9() etc. See DifferentialEquations.jl for full list\\
 `wall` - Boundary object defined in Equilibrium.jl. The (R,z) coordinates of the wall of the tokamak (in meters)\\
-`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, interpolate onto max_length time points.\\
+`interp_dt` - Interpolate the resulting integrated path onto a path evenly spaced in time, with time step size inter_dt. If 0.0, solution time steps will vary.\\
 `classify_orbit` - If true, let the algorithm classify the resulting orbit\\
 `one_transit` - If true, stop the integration after particles completes one poloidal transit\\
 `store_path` - If true, then the orbit path will be returned. Otherwise, an empty path object is returned with the status object.\\
-`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length will be the length of an interpolated path that is returned instead.\\
-`max_tries` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
+`max_length` - The solve() function returns path arrays that are arbitrarily long. max_length is the maximum length of an interpolated path.\\
+`min_length` - The solve() function returns path arrays that are arbitrarily long. If min_length is specified, the interpolated path will be increased to at least min_length.\\
+`length_multiplier` - The solve() function returns path arrays that are arbitrarily long. length_multiplier allows some control over the rate of time sampling while respecting the solver's chosen time resolution.\\
+`maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
 `toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).\\
 `max_iters` - The solve() function has a default maximum number of iterations of 1e5. Use max_iters to increase this number.\\
 `autodiff` - Deprecated.\\
@@ -217,7 +233,8 @@ Inputs:\\
 """
 function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                    dt, tmin, tmax, integrator, wall::Union{Nothing,Wall}, interp_dt, classify_orbit::Bool,
-                   one_transit::Bool, store_path::Bool, max_length::Int, max_tries::Int, toa::Bool, max_iters::Int, autodiff::Bool,
+                   one_transit::Bool, store_path::Bool, max_length::Int, min_length::Int, length_multiplier::Float64,
+                   maxiter::Int, toa::Bool, maxiters::Int, autodiff::Bool,
                    r_callback::Bool,verbose::Bool, vacuum::Bool, drift::Bool, limit_phi::Bool, maxphi, debug::Bool)
 
     stat = GCStatus(typeof(gcp.r))
@@ -250,7 +267,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     gc_ode = make_gc_ode(M,gcp,stat,vacuum,drift) # Make the ordinary differential equation
     stat.vi = gc_ode(r0,false,tmin) # Obtain the initial velocity
 
-    r_callback = r_callback && !iszero(stat.vi[ir])
+    r_callback = r_callback && !iszero(stat.vi[ir]) #if r_callback is true, and initial radial velocity is zero, sets r_callback to false. Otherwise keeps r_callback the same.
 
     stat.initial_dir = abs(stat.vi[ir]) > abs(stat.vi[iz]) ? ir : iz # Is it mostly in the R- or z-direction? Element number 1 or 3?
 
@@ -294,8 +311,10 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         println("- interp_dt: $(interp_dt)")
         println("- classify_orbit: $(classify_orbit)")
         println("- one_transit: $(one_transit)")
-        println("- Maximum orbit length (will otherwise be interpolated onto this length): $(max_length)")
-        println("- The first integration will use $(max_iters) numerical iterations. ")
+        println("- Orbit interpolation lengths will be scaled by this factor: $(length_multiplier)")
+        println("- Maximum orbit length (will be interpolated onto this length if longer than it.): $(max_length)")
+        println("- Minimum orbit length (will be interpolated onto this length if shorter than it): $(min_length)")
+        println("- The first integration will use $(maxiters) numerical iterations. ")
         r_callback && println("- r_callback will be used.")
         vacuum && println("- Vacuum is assumed.")
         drift && println("- Particle drifts are included.")
@@ -306,7 +325,6 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     # Always try adaptive first
     dts = dt
     success = false
-    retcode = ReturnCode.Failure # By default, assume that the integration algorithm failed
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
                     callback=cb,adaptive=true,maxiters=max_iters)
@@ -317,9 +335,9 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
                         callback=cb,adaptive=true,maxiters=Int(max_iters*10))
         end
-        success = SciMLBase.successful_retcode(sol) &&
+        success = (SciMLBase.successful_retcode(sol) || stat.retcode == :Phi_terminated || 
+                   stat.retcode == :R_terminated || stat.retcode == :Pol_terminated || stat.retcode == :Hits_boundary) &&
                   ((stat.poloidal_complete || !one_transit) || limit_phi) || stat.hits_boundary
-        retcode = sol.retcode
 
     catch err
         verbose && (println("Adaptive"); println(err))
@@ -331,7 +349,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     if !success && debug
         verbose && println("Adaptive failed. You wanted to fix bugs. Here is some extra information that might help.")
         verbose && println("Success: $(success)")
-        verbose && println("sol.retcode: $(retcode)")
+        verbose && println("stat.retcode: $(stat.retcode)")
         verbose && println("stat.poloidal_complete: $(stat.poloidal_complete)")
         verbose && println("one_transit: $(one_transit)")
         verbose && println("Length(sol): $(length(sol))")
@@ -366,9 +384,11 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
                 sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
                             callback=cb,adaptive=false)
             end
-            success = SciMLBase.successful_retcode(sol) &&
+
+            success = (SciMLBase.successful_retcode(sol) || stat.retcode == :Phi_terminated || 
+                       stat.retcode == :R_terminated || stat.retcode == :Pol_terminated || stat.retcode == :Hits_boundary) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
-            retcode = sol.retcode
+            retcode = stat.retcode
         catch err
             verbose && (println("Non-Adaptive: dt = $(dts)"); println(err))
             if isa(err,InterruptException)
@@ -385,9 +405,11 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = SciMLBase.successful_retcode(sol) &&
+
+            success = (SciMLBase.successful_recode(sol) || stat.retcode == :Phi_terminated || 
+                       stat.retcode == :R_terminated || stat.retcode == :Pol_terminated || stat.retcode == :Hits_boundary) &&
                       (stat.poloidal_complete || !one_transit || limit_phi) || stat.hits_boundary
-            retcode = sol.retcode
+            retcode = stat.retcode
         catch err
             verbose && (println("Non-Adaptive: dt = $(dts)"); println(err))
             if isa(err,InterruptException)
@@ -409,9 +431,10 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             reset!(stat,one_transit,r_callback)
             sol = solve(ode_prob, integrator, dt=dts/10, reltol=1e-8, abstol=1e-12, verbose=verbose,
                         callback=cb, force_dtmin=true, adaptive=false)
-            success = SciMLBase.successful_retcode(sol) &&
+
+            success = (SciMLBase.successful_retcode(sol) || stat.retcode == :Phi_terminated || stat.retcode == :R_terminated || stat.retcode == :Pol_terminated || stat.retcode == :Hits_boundary) &&
                       (stat.poloidal_complete || !one_transit) || stat.hits_boundary
-            retcode = sol.retcode
+            retcode = stat.retcode
         catch err
             verbose && println(err)
             if isa(err,InterruptException)
@@ -435,7 +458,10 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         n = min(max_length,n)
         sol = sol(range(tmin,sol.t[end],length=n)) # Interpolate solution onto n points evently spaced in time
     else
-        n = min(max_length, length(sol))
+        min_length > max_length && warn("Requested min_length conflicts with max_length")
+        n = round(Int,length_multiplier*length(sol))
+        n = min(max_length, n)
+        min_length != 0 && n < min_length && (n = min_length)
         sol = sol(range(tmin,sol.t[end],length=n)) # Interpolate solution onto n points evently spaced in time
     end
     n = length(sol)
@@ -455,6 +481,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
             stat.rm = r[ind]
             stat.zm = z[ind]
             stat.pm = pitch[ind]
+            stat.tm = sol.t[ind]
         end
     end
 
@@ -500,13 +527,13 @@ written above.
 """
 function integrate(M::AbstractEquilibrium, gcp::GCParticle; phi0=0.0, dt=cyclotron_period(M,gcp)*1e-1,
                    tmin=0.0,tmax=1e6*dt, integrator=Tsit5(), wall=nothing, interp_dt = 0.0,
-                   classify_orbit=true, one_transit=false, store_path=true, max_length=500,
-                   max_tries=3, toa=false, max_iters=Int(1e6), autodiff=true, r_callback=false, verbose=false,
+                   classify_orbit=true, one_transit=false, store_path=true, max_length=500, min_length=0, length_multiplier=1.0,
+                   maxiter=3, toa=false, maxiters=Int(1e6), autodiff=true, r_callback=false, verbose=false,
                    vacuum=false, drift=true, limit_phi=false, maxphi=10*2*pi, debug=false)
 
     path, stat = integrate(M, gcp, phi0, dt, tmin, tmax, integrator, wall, interp_dt,
-                           classify_orbit, one_transit, store_path, max_length, max_tries,
-                           toa, max_iters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, debug)
+                           classify_orbit, one_transit, store_path, max_length, min_length, length_multiplier, maxiter,
+                           toa, maxiters, autodiff, r_callback, verbose, vacuum, drift, limit_phi, maxphi, debug)
     return path, stat
 end
 
@@ -557,4 +584,165 @@ function Base.show(io::IO, orbit::Orbit)
     @printf(io, " τ_p= %.3f μs\n", orbit.tau_p*1e6)
     @printf(io, " τ_t= %.3f μs\n", orbit.tau_t*1e6)
     print(io,   " gc-valid: $(orbit.gcvalid)")
+end
+
+function write_Orbs(orbs; filename="PSOrbs.h5")
+    @save filename orbs
+    nothing
+end
+
+function write_OrbsOld(orbs; filename="PSOrbs.h5", write_paths = true)
+    numorbs = length(orbs)
+
+    classes = Vector{String}()
+
+    Em = zeros(Float64,numorbs)
+    pm = zeros(Float64,numorbs)
+    Rm = zeros(Float64,numorbs)
+    Zm = zeros(Float64,numorbs)
+    tm = zeros(Float64,numorbs)
+
+    t_p = zeros(Float64,numorbs)
+    t_t = zeros(Float64,numorbs)
+
+    if write_paths
+        path_e = Vector{Float64}[]
+        path_p = Vector{Float64}[]
+        path_r = Vector{Float64}[]
+        path_z = Vector{Float64}[]
+        path_phi = Vector{Float64}[]
+        path_dt = Vector{Float64}[]
+        jacdets = Vector{Float64}[]
+    end
+
+    for (io,o) in enumerate(orbs) 
+        Em[io] = o.coordinate.energy
+        pm[io] = o.coordinate.pitch
+        Rm[io] = o.coordinate.r
+        Zm[io] = o.coordinate.z
+        tm[io] = o.coordinate.t
+
+        t_p[io] = o.tau_p
+        t_t[io] = o.tau_t
+
+        push!(classes,string(o.class))
+        if write_paths
+            push!(path_e,o.path.energy)
+            push!(path_p,o.path.pitch)
+            push!(path_r,o.path.r)
+            push!(path_z,o.path.z)
+            push!(path_phi,o.path.phi)
+            push!(path_dt,o.path.dt)
+            push!(jacdets,o.path.jacdets)
+        end
+    end
+    
+    h5open(filename,"w") do file
+        file["Em"] = Em
+        file["pm"] = pm
+        file["Rm"] = Rm
+        file["Zm"] = Zm
+        file["tm_normalised"] = tm
+
+        file["tau_p"] = t_p
+        file["tau_t"] = t_t
+
+        file["class"] = classes
+
+        file["m"] = orbs[1].coordinate.m
+        file["q"] = orbs[1].coordinate.q
+
+        file["vacuum"] = orbs[1].path.vacuum
+        file["drift"] = orbs[1].path.drift
+
+        if write_paths
+            for i = 1:length(orbs)
+                file[string("path_e",i)] = path_e[i]
+                file[string("path_p",i)] = path_p[i]
+                file[string("path_r",i)] = path_r[i]
+                file[string("path_z",i)] = path_z[i]
+                file[string("path_phi",i)] = path_phi[i]
+                file[string("path_dt",i)] = path_dt[i]
+                file[string("jacdets",i)] = jacdets[i]
+            end
+        end
+
+    end
+    nothing
+end
+
+function read_Orbs(filename::String; old::Bool=false, read_paths::Bool=true)
+    (old||(last(filename,2)=="h5")) && (return read_OrbsOld(filename,read_paths=read_paths))
+
+    isfile(filename) || error("File does not exist")
+    @load filename orbs
+
+    return orbs
+end
+
+function read_OrbsOld(filename; read_paths = true)
+    isfile(filename) || error("File does not exist")
+
+    f = h5open(filename)
+    Em = read(f["Em"])
+    pm = read(f["pm"])
+    Rm = read(f["Rm"])
+    Zm = read(f["Zm"])
+    tm = read(f["tm_normalised"])
+
+    t_p = read(f["tau_p"])
+    t_t = read(f["tau_t"])
+
+    classes = Symbol.(read(f["class"]))
+
+    m = read(f["m"])
+    q = read(f["q"])
+
+    vacuum = read(f["vacuum"])
+    drift = read(f["drift"])
+
+    if read_paths
+        path_e = Vector{Float64}[]
+        path_p = Vector{Float64}[]
+        path_r = Vector{Float64}[]
+        path_z = Vector{Float64}[]
+        path_phi = Vector{Float64}[]
+        path_dt = Vector{Float64}[]
+        jacdets = Vector{Float64}[]
+
+        for i=1:length(Em)
+            push!(path_e,read(f[string("path_e",i)]))
+            push!(path_p,read(f[string("path_p",i)]))
+            push!(path_r,read(f[string("path_r",i)]))
+            push!(path_z,read(f[string("path_z",i)]))
+            push!(path_phi,read(f[string("path_phi",i)]))
+            push!(path_dt,read(f[string("path_dt",i)]))
+            push!(jacdets,read(f[string("jacdets",i)]))
+        end
+    end
+
+    close(f)
+
+    orbs = Orbit{Float64, EPRCoordinate{Float64}}[]
+
+    print("Appending Orbits\n")
+
+    @showprogress for i=1:length(Em)
+        c = EPRCoordinate(Em[i],pm[i],Rm[i],Zm[i],tm[i],m,q)
+
+        if read_paths
+            path = OrbitPath(vacuum,drift,path_e[i],path_p[i],path_r[i],path_z[i],path_phi[i],path_dt[i],jacdets[i])
+            o_i = Orbit(c,classes[i],t_p[i],t_t[i],path,true)
+        else 
+            nullPath = OrbitPath(;vacuum=vacuum,drift=drift)
+            o_i = Orbit(c,classes[i],t_p[i],t_t[i],nullPath,true)
+        end
+
+        push!(orbs,o_i)
+    end
+
+    filename_new = string(chop(filename,tail=2),"jld2")
+    write_Orbs(orbs; filename=filename_new)
+
+    return orbs
 end

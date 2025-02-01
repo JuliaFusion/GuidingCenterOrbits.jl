@@ -52,6 +52,32 @@ function Base.show(io::IO, c::EPRCoordinate)
     @printf(io," Rmax = %.3f m",c.r)
 end
 
+struct GCEPRCoordinate
+    energy::Float64
+    pitch::Float64
+    r::Float64
+    z::Float64
+    pitch_m::Float64
+    r_m::Float64
+    z_m::Float64
+    t::Float64
+    class::Char
+    tau_p::Float64
+    tau_t::Float64
+    jacdet::Float64
+    gcvalid::Bool
+    m::Float64
+    q::Int
+end
+
+function GCEPRCoordinate(args...; jacdet::Float64=0.0, gcvalid::Bool=false, m::Float64=H2_amu*mass_u, q::Int=1) 
+    GCEPRCoordinate(promote(args)..., jacdet, gcvalid, m, q)
+end
+
+function GCEPRCoordinate(gcp::GCParticle,class::Char='i'; gcvalid::Bool=false) 
+    return GCEPRCoordinate(gcp.energy,gcp.pitch,gcp.r,gcp.z,0.0,0.0,0.0,0.0,class,0.0,0.0,0.0,gcvalid,gcp.m,gcp.q)
+end
+
 struct HamiltonianCoordinate{T} <: AbstractOrbitCoordinate{T}
     energy::T #Kinetic + Potential Energy
     mu::T

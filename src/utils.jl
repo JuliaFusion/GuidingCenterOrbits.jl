@@ -13,12 +13,15 @@ function get_pitch(M::AbstractEquilibrium, c::HamiltonianCoordinate, r::T, z::T)
     return clamp(pitch,-1.0,1.0)
 end
 
-function get_pitch(M::AbstractEquilibrium, gcp::GCParticle, p_para::T, mu::T, r::T, z::T) where {T<:Number}
+function get_pitch(M::AbstractEquilibrium, m::AbstractFloat, p_para::T, mu::T, r::T, z::T) where {T<:Number}
     Babs = norm(Bfield(M,r,z))
-    m = gcp.m
     p = sqrt(p_para^2 + 2*m*Babs*mu)
     pitch = B0Ip_sign(M)*p_para/p
     return pitch
+end
+
+function get_pitch(M::AbstractEquilibrium, gcp::GCParticle, p_para::T, mu::T, r::T, z::T) where {T<:Number}
+    return get_pitch(M, gcp.m, p_para, mu, r, z)
 end
 
 function get_pitch(M::AbstractEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}
@@ -39,12 +42,15 @@ function get_kinetic_energy(M::AbstractEquilibrium, c::HamiltonianCoordinate, r:
     return c.energy - 1e-3*electric_potential(M,psi)
 end
 
-function get_kinetic_energy(M::AbstractEquilibrium, gcp::GCParticle, p_para::T, mu::T, r::T, z::T) where {T<:Number}
+function get_kinetic_energy(M::AbstractEquilibrium, m::AbstractFloat, p_para::T, mu::T, r::T, z::T) where {T<:Number}
     Babs = norm(Bfield(M,r,z))
-    m = gcp.m
     mc2 = m*c0^2
     p = sqrt(p_para^2 + 2*m*Babs*mu)
     KE = 1e-3*(hypot(p*c0, mc2) - mc2)/e0 #keV
+end
+
+function get_kinetic_energy(M::AbstractEquilibrium, gcp::GCParticle, p_para::T, mu::T, r::T, z::T) where {T<:Number}
+    return get_kinetic_energy(M, gcp.m, p_para, mu, r, z)
 end
 
 function get_kinetic_energy(M::AbstractEquilibrium, c::T, path::OrbitPath) where {T<:AbstractOrbitCoordinate}
@@ -97,6 +103,30 @@ function classify(path::OrbitPath, axis)
 end
 
 """
+    class_char(class::Symbol)
+Converts between classes as symbols and classes as characters as used by GCEPRCoordinate.
+"""
+function class_char(class::Symbol)
+    classes = Dict(:trapped=>'t',:co_passing=>'p',:ctr_passing=>'c',
+    :stagnation=>'s',:potato=>'o',:incomplete=>'i',
+    :Invalid=>'v',:meta=>'m',:lost=>'l')
+
+    return classes[class]
+end
+
+"""
+    class_char(class::Char)
+Converts between classes as symbols and classes as characters as used in GCEPRCoordinate.
+"""
+function class_char(class::Char)
+    classes = Dict('t'=>:trapped,'p'=>:co_passing,'c'=>:ctr_passing,
+    's'=>:stagnation,'o'=>:potato,'i'=>:incomplete,
+    'v'=>:Invalid,'m'=>:meta,'l'=>:lost)
+
+    return classes[class]
+end
+
+"""
     _eigmax(A) -> λ_max
 
 Returns approximate largest eigval for a 3x3 matrix using power iteration
@@ -129,26 +159,24 @@ and FOE is to be expected. The equations to compute ̂M are from Appendix B of t
 Return true if the criterion is fulfilled, and it is ok to use GCDE.
 Return false if the criterion is not fulfilled, and FOE should be used instead.
 """
-function gcde_check(M::AbstractEquilibrium, gcp::GCParticle{T}, path::OrbitPath; threshold=0.073, verbose=false) where {T}
+function _gcde_check(M::AbstractEquilibrium, KE::AbstractFloat, m::AbstractFloat, q::AbstractFloat, r::AbstractVector{T}, phi::AbstractVector{T}, z::AbstractVector{T}, pitch::AbstractVector{T}; threshold=0.073, verbose=false) where {T<:AbstractFloat}
+    length(r)==0 && (return false)
 
     g_rz = (x) -> poloidal_current(M, M(x[1],x[2])) # Poloidal current function (F=R*Bt) as a function of R,Z
     dpsi_rz = (x) -> psi_gradient(M, x[1], x[2]) # [dψ/dR,dψ/dZ] as a function of R,Z
-    m = gcp.m # Mass of particle. kg
-    KE = gcp.energy # Kinetic energy. keV
     mc2 = m*c0*c0 # Rest energy. Joule
     KE_j = e0*KE*1e3 # Kinetic energy. Joule
     p_rel2 = ((KE_j + mc2)^2 - mc2^2)/(c0*c0) # Square of relativistic momentum. kg^2 m^2 s^-2
-    q = gcp.q*e0 # Particle charge. Coulomb
 
     maxcrit = 0.0 # To keep track of the maximum of criterion violation
     #Mhat = zeros(3,3) # Alternative function execution approach
-    for i=1:length(path)
-        R = path.r[i] # Major radius position of particle. m
-        φ = path.phi[i] # Toroidal angle position of particle. -
-        Z = path.z[i] # Vertical position of particle. m
-        pitch = path.pitch[i] # Pitch of particle. -
+    for i=1:length(r)
+        R = r[i] # Major radius position of particle. m
+        φ = phi[i] # Toroidal angle position of particle. -
+        Z = z[i] # Vertical position of particle. m
+        pitch_i = pitch[i] # Pitch of particle. -
 
-        p_perp2 = p_rel2*(1-pitch^2) # Square of relativistic perpendicular momentum. kg^2 m^2 s^-2
+        p_perp2 = p_rel2*(1-pitch_i^2) # Square of relativistic perpendicular momentum. kg^2 m^2 s^-2
         B = Equilibrium.Bfield(M, R, Z) # Magnetic field vector at particle position.
         Babs = norm(B) # Magnetic field magnitude. Tesla
 
@@ -209,6 +237,17 @@ function gcde_check(M::AbstractEquilibrium, gcp::GCParticle{T}, path::OrbitPath;
         println("- gcde ok to use!")
     end
     return true
+end
+
+function gcde_check(M::AbstractEquilibrium, KE::Number, m::AbstractFloat, q::Number, r::AbstractVector{T}, phi::AbstractVector{T}, z::AbstractVector{T}, pitch::AbstractVector{T}; kwargs...) where {T<:Number}
+    (q isa Int) && (q *= e0) 
+    length(r)==0 && (return false)
+    (r[1] isa ForwardDiff.Dual) && (return _gcde_check(M,ForwardDiff.value(KE), m, q, ForwardDiff.value.(r), ForwardDiff.value.(phi), ForwardDiff.value.(z), ForwardDiff.value.(pitch); kwargs...))
+    return _gcde_check(M, KE, m, q, r, phi, z, pitch; kwargs...)
+end
+
+function gcde_check(M::AbstractEquilibrium,  gcp::GCParticle, path::OrbitPath; kwargs...)
+    gcde_check(M, gcp.energy, gcp.m, e0*gcp.q, path.r, path.phi, path.z, path.pitch; kwargs...)
 end
 
 function gcde_check(M::AbstractEquilibrium, o::Orbit; kwargs...)
