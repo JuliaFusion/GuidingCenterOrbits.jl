@@ -221,7 +221,7 @@ Inputs:\\
 `length_multiplier` - The solve() function returns path arrays that are arbitrarily long. length_multiplier allows some control over the rate of time sampling while respecting the solver's chosen time resolution.\\
 `maxiter` - If the first adaptive and non-adaptive integration attempt fail, the algorithm will re-try with progresively smaller time steps this number of times.\\
 `toa` - Stands for 'try only adaptive'. If true, non-adaptive integration will not be attempted (safe but possibly incomplete).\\
-`max_iters` - The solve() function has a default maximum number of iterations of 1e5. Use max_iters to increase this number.\\
+`maxiters` - The solve() function has a default maximum number of iterations of 1e5. Use maxiters to increase this number.\\
 `autodiff` - Deprecated.\\
 `r_callback` - If true, then the integration will be terminated when the ratio between the r direction speed and the total speed has gone to zero 20 times (prevents infinite loop)\\
 `verbose` - If true, lots of output messages will be printed during execution.\\
@@ -327,13 +327,13 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
     success = false
     try
         sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
-                    callback=cb,adaptive=true,maxiters=max_iters)
+                    callback=cb,adaptive=true,maxiters=maxiters)
         if sol.t[end] >= tspan[2] && one_transit
             verbose && println("Adaptive sol.t[end] >= tspan[2]. Re-setting and re-integrating...")
             reset!(stat,one_transit,r_callback)
             ode_prob = remake(ode_prob; tspan=(tspan[1],100*tspan[2]))
             sol = solve(ode_prob, integrator, dt=dts, reltol=1e-8, abstol=1e-12, verbose=verbose, force_dtmin=true,
-                        callback=cb,adaptive=true,maxiters=Int(max_iters*10))
+                        callback=cb,adaptive=true,maxiters=Int(maxiters*10))
         end
         success = (SciMLBase.successful_retcode(sol) || stat.retcode == :Phi_terminated || 
                    stat.retcode == :R_terminated || stat.retcode == :Pol_terminated || stat.retcode == :Hits_boundary) &&
@@ -397,7 +397,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
         end
     end
 
-    for i=1:max_tries #Try progressivly smaller time step
+    for i=1:maxiter #Try progressivly smaller time step
         (success || toa) && break
         dts = dts/10
         verbose && println("Re-trying non-adaptive with smaller timestep... ")
@@ -445,7 +445,7 @@ function integrate(M::AbstractEquilibrium, gcp::GCParticle, phi0,
 
     if one_transit && stat.class != :lost && !stat.poloidal_complete
         verbose && println(" ")
-        verbose && println("max_iters: $(max_iters)")
+        verbose && println("maxiters: $(maxiters)")
         verbose && println("Solution array lengths: $(length(sol.t))")
         verbose && @warn "Orbit did not complete one transit in allotted time" gcp tmax retcode
     end
